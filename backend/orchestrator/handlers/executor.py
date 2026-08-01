@@ -5,6 +5,7 @@ import logging
 from app.models import Artifact, Node, NodeStatus
 from orchestrator.config import HandlerConfig
 from orchestrator.handlers import ArtifactSpec, HandlerResult
+from orchestrator.sandbox.bandit_runner import run_bandit_security_scan_in_docker_sandbox
 from orchestrator.sandbox.docker_runner import run_code_in_docker_sandbox
 from orchestrator.sandbox.test_runner import run_contract_tests_in_docker_sandbox
 from orchestrator.sandbox.ts_build_runner import run_ts_build_in_docker_sandbox
@@ -17,7 +18,7 @@ async def handle_executor_node(
     inputs: dict[str, Artifact],
     config: HandlerConfig,
 ) -> HandlerResult:
-    """Execute code, contract tests, or TS builds in a Docker sandbox container and emit corresponding report artifacts."""
+    """Execute code, contract tests, TS builds, or security scans in a Docker sandbox container and emit corresponding report artifacts."""
     # Phase 0 backward compatibility for legacy fake executor tests
     if "exit_code" in node.config or ("stdout" in node.config and "mock_report" not in node.config):
         exit_code = node.config.get("exit_code", 0)
@@ -45,6 +46,44 @@ async def handle_executor_node(
             test_files[art.filename] = art.content
         elif art.kind == "frontend_code":
             frontend_files[art.filename] = art.content
+
+    # Branch for SecurityScanExecutor (Bandit AST security scan)
+    if node.agent_role == "security_executor" or node.name.startswith("SecurityScanExecutor"):
+        if "mock_report" in node.config:
+            report = node.config["mock_report"]
+        elif not source_files:
+            report = {
+                "scan_completed": False,
+                "high_count": 0,
+                "medium_count": 0,
+                "low_count": 0,
+                "high_findings": [],
+                "bandit_version": "",
+                "raw_output": "Missing source_code artifacts.",
+                "elapsed_s": 0.0,
+            }
+        else:
+            report = run_bandit_security_scan_in_docker_sandbox(source_files)
+
+        artifact_spec = ArtifactSpec(
+            kind="security_report",
+            filename="security_report.json",
+            content=json.dumps(report, indent=2),
+            content_type="application/json",
+        )
+
+        log_msg = (
+            f"SecurityScanExecutor {node.name} completed bandit scan: "
+            f"scan_completed={report.get('scan_completed')}, "
+            f"high_count={report.get('high_count')}, medium_count={report.get('medium_count')}, "
+            f"low_count={report.get('low_count')}"
+        )
+
+        return HandlerResult(
+            status=NodeStatus.completed,
+            artifacts=[artifact_spec],
+            logs=log_msg,
+        )
 
     # Branch for BuildExecutor (TypeScript compile validation)
     if node.agent_role == "build_executor" or (node.name == "BuildExecutor" and bool(frontend_files)):

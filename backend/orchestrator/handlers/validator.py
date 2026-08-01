@@ -19,12 +19,15 @@ async def handle_validator_node(
     Supports both Phase 1.3b execution_report and Phase 0 legacy stdout artifacts.
     NO LLM. Node status is completed in both pass and fail cases.
     """
+    security_report_art = None
     build_report_art = None
     test_report_art = None
     exec_report_art = None
     stdout_art = None
     for art in inputs.values():
-        if art.kind == "build_report":
+        if art.kind == "security_report":
+            security_report_art = art
+        elif art.kind == "build_report":
             build_report_art = art
         elif art.kind == "test_report":
             test_report_art = art
@@ -32,6 +35,47 @@ async def handle_validator_node(
             exec_report_art = art
         elif art.kind == "stdout":
             stdout_art = art
+
+    # SecurityValidator branch (Phase 3 Bandit AST security scan)
+    if security_report_art is not None:
+        try:
+            report = json.loads(security_report_art.content)
+        except Exception as exc:
+            return HandlerResult(
+                status=NodeStatus.failed,
+                artifacts=[],
+                logs=f"Validator error parsing security_report JSON: {exc}",
+            )
+
+        scan_completed = report.get("scan_completed", False)
+        high_count = report.get("high_count", 0)
+        high_findings = report.get("high_findings", [])
+
+        passed = bool(scan_completed and high_count == 0)
+        failures = []
+        if not scan_completed:
+            failures.append("security_scan_failed_to_complete")
+        if high_count > 0:
+            for f in high_findings:
+                loc = f"{f.get('filename')}:{f.get('line_number')}"
+                failures.append(f"HIGH_VULNERABILITY [{f.get('test_id')}] {f.get('issue_text')} at {loc}")
+
+        verdict_payload = {
+            "passed": passed,
+            "failures": failures,
+        }
+        artifact_spec = ArtifactSpec(
+            kind="verdict",
+            filename="verdict.json",
+            content=json.dumps(verdict_payload, indent=2),
+            content_type="application/json",
+        )
+        return HandlerResult(
+            status=NodeStatus.completed,
+            artifacts=[artifact_spec],
+            logs=f"SecurityValidator verdict: passed={passed}, failures={failures}",
+            meta={"passed": passed, "failures": failures},
+        )
 
     # BuildValidator branch (Phase 2b TypeScript compiler check)
     if build_report_art is not None:

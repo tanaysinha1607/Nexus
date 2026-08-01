@@ -208,8 +208,7 @@ CRITICAL REQUIREMENTS & SCHEMA FIDELITY DIRECTIVES:
 - requirements.txt MUST list EVERY third-party package your code imports, including transitive needs: if you use pydantic EmailStr you MUST include email-validator>=2.0.0; if you import cryptography you MUST list cryptography; if you use passlib[bcrypt] list passlib[bcrypt]==1.7.4. Pin versions.
 - Pydantic v2 syntax: Do NOT use Field(..., const=True) or Field(..., regex=...). Use Literal["value"] for constant fields (e.g. token_type: Literal["bearer"] = "bearer" from typing import Literal) and pattern= for regexes.
 - Your response_schema field names and types MUST match api_contract.json EXACTLY. If the contract says cash_balance is a string, return a string. Do not rename 'positions' to 'holdings' or add fields not in the contract.
-- The entrypoint MUST remain main.py with an `app` object (uvicorn runs main:app). NEVER rename it. When fixing a failure, change ONLY what the traceback names — usually requirements.txt. Do not restructure, rename files, or rewrite working code. Minimal targeted change.
-- A previous attempt FAILED or requested changes. You may receive a failure_context (a container runtime traceback — fix the specific error), review_feedback (a senior reviewer's requested changes — address each comment), or test_failure (a black-box test against the contract failed — make the response match the contract exactly). Handle whichever is present. Do not rewrite from scratch; make the minimal change that resolves the error or comment. Keep the entrypoint main.py.
+- The entrypoint MUST remain main.py with an `app` object (uvicorn runs main:app). NEVER rename it. When fixing a failure, change ONLY what the traceback names — usually requirements.txt. Do not restructure, rename files, or rewrite working code. A previous attempt FAILED or requested changes. You may receive a failure_context (a container runtime traceback — fix the specific error), review_feedback (a senior reviewer's requested changes — address each comment), test_failure (a black-box test against the contract failed — make the response match the contract exactly), or security_finding (a real security scanner (bandit) found HIGH-severity issues at the listed lines — fix each one, e.g. B105/B106 hardcoded password, B608 SQL injection, B303 weak crypto, B307 eval(). Remove the vulnerability, keep functionality). Handle whichever is present. Do not rewrite from scratch; make the minimal change that resolves the error or comment. Keep the entrypoint main.py.
 
 Fixed language: Python 3.11, FastAPI.
 
@@ -242,7 +241,7 @@ BACKEND_ENGINEER_ROLE = AgentRole(
     outputs=[
         OutputSpec(kind="source_code", filename="main.py", required=True),
     ],
-    max_tokens=2200,
+    max_tokens=2500,
     temperature=0.1,
     input_selectors=[
         {"kind": "api_contract"},
@@ -250,9 +249,10 @@ BACKEND_ENGINEER_ROLE = AgentRole(
         {"kind": "failure_context"},
         {"kind": "review_feedback"},
         {"kind": "test_failure"},
+        {"kind": "security_finding"},
     ],
     max_input_chars=16_000,
-    never_truncate=["failure_context", "review_feedback", "test_failure", "api_contract"],
+    never_truncate=["failure_context", "review_feedback", "test_failure", "security_finding", "api_contract"],
     accept_any_file=True,
 )
 

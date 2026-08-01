@@ -37,6 +37,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
   const execReportArt = nodeArtifacts.find((a) => a.kind === "execution_report");
   const testReportArt = nodeArtifacts.find((a) => a.kind === "test_report");
   const buildReportArt = nodeArtifacts.find((a) => a.kind === "build_report");
+  const securityReportArt = nodeArtifacts.find((a) => a.kind === "security_report");
 
   // Verdict
   const verdictArt = nodeArtifacts.find((a) => a.kind === "verdict");
@@ -110,10 +111,11 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
         {/* 1. VERDICT ARTIFACT (If Validator) */}
         {verdictArt && renderVerdictSection(verdictArt)}
 
-        {/* 2. EXECUTION / TEST / BUILD REPORT ARTIFACTS */}
+        {/* 2. EXECUTION / TEST / BUILD / SECURITY REPORT ARTIFACTS */}
         {execReportArt && renderExecutionReportSection(execReportArt)}
         {testReportArt && renderTestReportSection(testReportArt)}
         {buildReportArt && renderBuildReportSection(buildReportArt)}
+        {securityReportArt && renderSecurityReportSection(securityReportArt)}
 
         {/* 3. SOURCE CODE / FRONTEND CODE ARTIFACTS */}
         {sourceCodeArts.length > 0 && renderSourceCodeSection(sourceCodeArts)}
@@ -128,6 +130,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
               a.kind !== "execution_report" &&
               a.kind !== "test_report" &&
               a.kind !== "build_report" &&
+              a.kind !== "security_report" &&
               a.kind !== "verdict" &&
               a.kind !== "prompt"
           )
@@ -450,6 +453,90 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
             )}
           </div>
         </div>
+      </div>
+    );
+  }
+
+  function renderSecurityReportSection(art: ArtifactData) {
+    let report: any = {};
+    try {
+      report = JSON.parse(art.content);
+    } catch {
+      report = {};
+    }
+
+    const scanCompleted = report.scan_completed;
+    const highCount = report.high_count ?? 0;
+    const mediumCount = report.medium_count ?? 0;
+    const lowCount = report.low_count ?? 0;
+    const highFindings: any[] = report.high_findings || [];
+
+    return (
+      <div className="bg-gray-900/80 border border-purple-800/60 rounded-xl p-5 space-y-4">
+        <h4 className="text-sm font-mono font-bold uppercase text-purple-400 tracking-wider flex items-center gap-2">
+          <span>🛡️ Bandit AST Security Scan Report</span>
+          <span className="text-[10px] text-purple-500/80 font-normal">bandit -f json -r .</span>
+        </h4>
+
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">Scan Status</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                scanCompleted
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {scanCompleted ? "COMPLETED" : "FAILED"}
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">HIGH Vulns</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                highCount > 0
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+              }`}
+            >
+              {highCount} HIGH
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">MEDIUM</span>
+            <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              {mediumCount} MED
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">LOW</span>
+            <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">
+              {lowCount} LOW
+            </span>
+          </div>
+        </div>
+
+        {highFindings.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs font-mono text-rose-400 font-bold uppercase flex items-center gap-1.5">
+              <span>⚠️ HIGH Severity Security Vulnerabilities ({highFindings.length})</span>
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto">
+              {highFindings.map((finding: any, idx: number) => (
+                <div key={idx} className="bg-gray-950 p-3 rounded-lg border border-rose-900/60 font-mono text-xs text-rose-200">
+                  <div className="flex items-center justify-between font-bold text-rose-300">
+                    <span>[{finding.test_id}] {finding.issue_text}</span>
+                    <span>{finding.filename}:{finding.line_number}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     );
   }

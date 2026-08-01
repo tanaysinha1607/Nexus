@@ -249,7 +249,7 @@ async def create_rework_subchain(
     all_exec = list(all_exec_res.scalars().all())
     prev_exec_node = max(all_exec, key=lambda n: getattr(n, "attempt", 1)) if all_exec else None
 
-    # Determine feedback artifact type: failure_context, review_feedback, test_failure, or build_failure
+    # Determine feedback artifact type: failure_context, review_feedback, test_failure, build_failure, or security_finding
     is_test_rework = (
         trigger_node.agent_role == "test_validator"
         or (prev_exec_node and prev_exec_node.agent_role == "test_executor")
@@ -258,6 +258,11 @@ async def create_rework_subchain(
         trigger_node.agent_role == "build_validator"
         or (prev_exec_node and prev_exec_node.agent_role == "build_executor")
         or trigger_node.name.startswith("BuildValidator")
+    )
+    is_security_rework = (
+        trigger_node.agent_role == "security_validator"
+        or (prev_exec_node and prev_exec_node.agent_role == "security_executor")
+        or trigger_node.name.startswith("SecurityValidator")
     )
 
     if trigger_node.agent_role == "senior_reviewer":
@@ -285,6 +290,54 @@ async def create_rework_subchain(
         buffer_artifact_created(
             event_buffer, run_id, trigger_node.id, "senior_reviewer",
             fb_art_id, "review_feedback.json", "review_feedback", "senior_reviewer", 1,
+        )
+    elif is_security_rework:
+        report_data = {}
+        if prev_exec_node:
+            rep_stmt = (
+                select(Artifact)
+                .where(
+                    Artifact.run_id == run_id,
+                    Artifact.node_id == prev_exec_node.id,
+                    Artifact.kind == "security_report",
+                )
+                .order_by(Artifact.version.desc())
+                .limit(1)
+            )
+            rep_res = await session.execute(rep_stmt)
+            rep_art = rep_res.scalar_one_or_none()
+            if rep_art:
+                try:
+                    report_data = json.loads(rep_art.content)
+                except Exception:
+                    report_data = {"raw_content": rep_art.content}
+
+        security_finding_summary = {
+            "attempt": prev_attempt,
+            "failed_role": "security_validator",
+            "high_count": report_data.get("high_count", 0),
+            "high_findings": report_data.get("high_findings", []),
+            "failures": verdict_data.get("failures", []),
+        }
+
+        sf_art_id = uuid.uuid4()
+        sf_art = Artifact(
+            id=sf_art_id,
+            project_id=trigger_node.project_id,
+            node_id=trigger_node.id,
+            run_id=run_id,
+            filename="security_finding.json",
+            kind="security_finding",
+            produced_by_role="security_validator",
+            content=json.dumps(security_finding_summary, indent=2),
+            content_type="application/json",
+            version=1,
+            attempt=next_attempt,
+        )
+        session.add(sf_art)
+        buffer_artifact_created(
+            event_buffer, run_id, trigger_node.id, "security_validator",
+            sf_art_id, "security_finding.json", "security_finding", "security_validator", 1,
         )
     elif is_frontend_rework:
         report_data = {}
@@ -456,7 +509,65 @@ async def create_rework_subchain(
     new_val_id = uuid.uuid4()
     new_rev_id = uuid.uuid4()
 
-    if is_frontend_rework:
+    if is_security_rework:
+        new_producer_node = Node(
+            id=new_producer_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"Backend_a{next_attempt}",
+            node_type=NodeType.agent,
+            agent_role="backend_engineer",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_backend_node.id,
+            config={
+                "required_inputs": [
+                    {"kind": "api_contract"},
+                    {"kind": "source_code", "optional": True},
+                    {"kind": "failure_context", "optional": True, "exact_attempt": True},
+                    {"kind": "review_feedback", "optional": True, "exact_attempt": True},
+                    {"kind": "test_failure", "optional": True, "exact_attempt": True},
+                    {"kind": "security_finding", "optional": True, "exact_attempt": True},
+                ]
+            },
+        )
+
+        exec_config = {"required_inputs": [{"kind": "source_code", "exact_attempt": True}]}
+        if prev_exec_node and "mock_report" in prev_exec_node.config:
+            mock_rep = dict(prev_exec_node.config["mock_report"])
+            if prev_exec_node.config.get("mock_success_on_retry", False):
+                mock_rep["scan_completed"] = True
+                mock_rep["high_count"] = 0
+                mock_rep["high_findings"] = []
+            exec_config["mock_report"] = mock_rep
+            exec_config["mock_success_on_retry"] = prev_exec_node.config.get("mock_success_on_retry", False)
+
+        new_exec_node = Node(
+            id=new_exec_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"SecurityScanExecutor_a{next_attempt}",
+            node_type=NodeType.executor,
+            agent_role="security_executor",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_exec_node.id if prev_exec_node else None,
+            config=exec_config,
+        )
+
+        new_val_node = Node(
+            id=new_val_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"SecurityValidator_a{next_attempt}",
+            node_type=NodeType.validator,
+            agent_role="security_validator",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
+            config={"required_inputs": [{"kind": "security_report", "exact_attempt": True}]},
+        )
+    elif is_frontend_rework:
         new_producer_node = Node(
             id=new_producer_id,
             project_id=trigger_node.project_id,
