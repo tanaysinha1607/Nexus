@@ -77,7 +77,9 @@ Built in strict phases — each fully working and demoable before the next began
 
 - **Phase 0** ✅ — task-graph schema, scheduler, artifact-based readiness, Redis event bus, live WebSocket UI (no LLMs — orchestration proven on fake handlers)
 - **Phase 1** ✅ — the real MVP: five agents, real Docker execution, deterministic validation, self-healing rework on objective failure, and a Senior Reviewer subjective gate
-- **Phase 2** ⬜ — Frontend + QA agents, real test execution
+- **Phase 2** 🟡 — in progress
+    - **2a** ✅ QA Engineer + real contract-based test execution (agent-written pytest runs live against generated code)
+    - **2b** ⬜ Frontend Engineer
 - **Phase 3** ⬜ — Security + Performance agents backed by real scanners
 - **Phase 4** ⬜ — Documentation + DevOps agents
 - **Phase 5** ⬜ — GitHub integration, multi-project memory
@@ -85,5 +87,5 @@ Built in strict phases — each fully working and demoable before the next began
 ## Tests
 
 ```bash
-docker compose exec backend pytest tests/ -m "not live"   # 75 passing, no network
+docker compose exec backend pytest tests/ -m "not live"   # 80 passing, no network
 ```
