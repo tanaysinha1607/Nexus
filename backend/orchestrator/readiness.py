@@ -102,10 +102,10 @@ async def resolve_node_readiness(
             if art.filename:
                 resolved_inputs[art.filename] = art
 
-    # Special condition for Backend Engineer rework: requires at least failure_context or review_feedback for attempt=node_attempt
+    # Special condition for Backend Engineer rework: requires at least failure_context, review_feedback, or test_failure for attempt=node_attempt
     if node.agent_role == "backend_engineer" and node_attempt > 1:
         has_rework_feedback = any(
-            k in resolved_inputs for k in ("failure_context", "review_feedback")
+            k in resolved_inputs for k in ("failure_context", "review_feedback", "test_failure")
         )
         if not has_rework_feedback:
             return False, {}

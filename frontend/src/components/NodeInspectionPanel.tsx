@@ -34,6 +34,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
 
   // Execution report
   const execReportArt = nodeArtifacts.find((a) => a.kind === "execution_report");
+  const testReportArt = nodeArtifacts.find((a) => a.kind === "test_report");
 
   // Verdict
   const verdictArt = nodeArtifacts.find((a) => a.kind === "verdict");
@@ -109,6 +110,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
 
         {/* 2. EXECUTION REPORT ARTIFACT (If Executor) */}
         {execReportArt && renderExecutionReportSection(execReportArt)}
+        {testReportArt && renderTestReportSection(testReportArt)}
 
         {/* 3. SOURCE CODE ARTIFACTS (If Backend Engineer) */}
         {sourceCodeArts.length > 0 && renderSourceCodeSection(sourceCodeArts)}
@@ -119,6 +121,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
             (a) =>
               a.kind !== "source_code" &&
               a.kind !== "execution_report" &&
+              a.kind !== "test_report" &&
               a.kind !== "verdict" &&
               a.kind !== "prompt"
           )
@@ -282,6 +285,82 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
             {formatJson(art.content)}
           </pre>
         </details>
+      </div>
+    );
+  }
+
+  function renderTestReportSection(art: ArtifactData) {
+    let report: any = {};
+    try {
+      report = JSON.parse(art.content);
+    } catch {
+      report = {};
+    }
+
+    const serviceBooted = report.service_booted;
+    const passed = report.passed || 0;
+    const failed = report.failed || 0;
+    const pytestTail = report.pytest_output_tail || "";
+
+    return (
+      <div className="bg-gray-900/80 border border-emerald-800/60 rounded-xl p-5 space-y-4">
+        <h4 className="text-sm font-mono font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-2">
+          <span>🧪 Contract Test Execution Report</span>
+          <span className="text-[10px] text-emerald-500/80 font-normal">Black-Box Integration Tests</span>
+        </h4>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">Service Boot</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                serviceBooted
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {serviceBooted ? "BOOTED (200)" : "FAILED"}
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">Tests Passed</span>
+            <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+              {passed} PASSED
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">Tests Failed</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                failed > 0
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                  : "bg-gray-800 text-gray-400"
+              }`}
+            >
+              {failed} FAILED
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="text-cyan-300 font-bold uppercase flex items-center gap-1.5">
+              <span>🧪 Pytest Execution Output</span>
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 font-mono text-xs text-gray-300 max-h-72 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+            {pytestTail ? (
+              <span className={failed > 0 ? "text-rose-300 font-medium" : "text-emerald-300"}>
+                {pytestTail}
+              </span>
+            ) : (
+              <span className="text-gray-600 italic">No pytest output captured.</span>
+            )}
+          </div>
+        </div>
       </div>
     );
   }

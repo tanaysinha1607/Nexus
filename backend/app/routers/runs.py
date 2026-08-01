@@ -298,6 +298,96 @@ async def create_run(
             (exec_node.id, val_node.id),
             (val_node.id, reviewer_node.id),
         ]
+    elif graph == "pm_arch_backend_qa":
+        pm_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="PM",
+            node_type=NodeType.agent,
+            agent_role="product_manager",
+            config={"required_inputs": [{"kind": "user_prompt"}]},
+        )
+        arch_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="Architect",
+            node_type=NodeType.agent,
+            agent_role="solution_architect",
+            config={"required_inputs": [{"kind": "prd"}]},
+        )
+        api_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="ApiDesigner",
+            node_type=NodeType.agent,
+            agent_role="api_designer",
+            config={"required_inputs": [{"kind": "architecture"}]},
+        )
+        backend_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="Backend",
+            node_type=NodeType.agent,
+            agent_role="backend_engineer",
+            config={"required_inputs": [{"kind": "api_contract"}]},
+        )
+        qa_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="QA",
+            node_type=NodeType.agent,
+            agent_role="qa_engineer",
+            config={"required_inputs": [{"kind": "api_contract"}]},
+        )
+        exec_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="TestExecutor",
+            node_type=NodeType.executor,
+            agent_role="test_executor",
+            config={"required_inputs": [{"kind": "source_code"}, {"kind": "test_code"}]},
+        )
+        val_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="TestValidator",
+            node_type=NodeType.validator,
+            agent_role="test_validator",
+            config={"required_inputs": [{"kind": "test_report"}]},
+        )
+        reviewer_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="Reviewer",
+            node_type=NodeType.agent,
+            agent_role="senior_reviewer",
+            config={
+                "required_inputs": [
+                    {"kind": "verdict"},
+                    {"kind": "source_code"},
+                    {"kind": "api_contract"},
+                ]
+            },
+        )
+        nodes = [pm_node, arch_node, api_node, backend_node, qa_node, exec_node, val_node, reviewer_node]
+        edge_pairs = [
+            (pm_node.id, arch_node.id),
+            (arch_node.id, api_node.id),
+            (api_node.id, backend_node.id),
+            (api_node.id, qa_node.id),
+            (backend_node.id, exec_node.id),
+            (qa_node.id, exec_node.id),
+            (exec_node.id, val_node.id),
+            (val_node.id, reviewer_node.id),
+        ]
     else:
         node_specs, raw_edges = build_seed_graph_specs(project_id, run_id, fail_executor=fail_executor)
 

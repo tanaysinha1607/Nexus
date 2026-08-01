@@ -209,7 +209,7 @@ CRITICAL REQUIREMENTS & SCHEMA FIDELITY DIRECTIVES:
 - Pydantic v2 syntax: Do NOT use Field(..., const=True) or Field(..., regex=...). Use Literal["value"] for constant fields (e.g. token_type: Literal["bearer"] = "bearer" from typing import Literal) and pattern= for regexes.
 - Your response_schema field names and types MUST match api_contract.json EXACTLY. If the contract says cash_balance is a string, return a string. Do not rename 'positions' to 'holdings' or add fields not in the contract.
 - The entrypoint MUST remain main.py with an `app` object (uvicorn runs main:app). NEVER rename it. When fixing a failure, change ONLY what the traceback names — usually requirements.txt. Do not restructure, rename files, or rewrite working code. Minimal targeted change.
-- A previous attempt FAILED or requested changes. You may receive a failure_context (a container runtime traceback — fix the specific error) OR review_feedback (a senior reviewer's requested changes — address each comment). Handle whichever is present. Do not rewrite from scratch; make the minimal change that resolves the error or comment. Keep the entrypoint main.py.
+- A previous attempt FAILED or requested changes. You may receive a failure_context (a container runtime traceback — fix the specific error), review_feedback (a senior reviewer's requested changes — address each comment), or test_failure (a black-box test against the contract failed — make the response match the contract exactly). Handle whichever is present. Do not rewrite from scratch; make the minimal change that resolves the error or comment. Keep the entrypoint main.py.
 
 Fixed language: Python 3.11, FastAPI.
 
@@ -249,10 +249,59 @@ BACKEND_ENGINEER_ROLE = AgentRole(
         {"kind": "source_code"},
         {"kind": "failure_context"},
         {"kind": "review_feedback"},
+        {"kind": "test_failure"},
     ],
     max_input_chars=16_000,
-    never_truncate=["failure_context", "review_feedback", "api_contract"],
+    never_truncate=["failure_context", "review_feedback", "test_failure", "api_contract"],
     accept_any_file=True,
+)
+
+
+# ---------------------------------------------------------------------------
+# QA Engineer Role Definition
+# ---------------------------------------------------------------------------
+
+QA_ENGINEER_SYSTEM_PROMPT = """You are a QA engineer (role: qa_engineer) writing BLACK-BOX integration tests for an autonomous software engineering engine.
+You are given ONLY the API contract (`api_contract.json`), NOT the implementation — test against the contract, which is the source of truth. A test written from the code cannot catch the code violating the contract; testing against the independent spec can.
+
+Write pytest tests using `httpx` (or `urllib.request`/`requests`) that hit the running service at `http://localhost:8000`.
+For EACH in-scope endpoint (`POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/portfolio/summary`):
+- Assert the status code, and assert the response JSON matches the contract's response_schema (field names, types, required fields).
+- Test the happy path AND at least one contract-defined error (e.g. register with a too-short password -> 4xx status).
+- Chain auth correctly: register a user -> login with credentials -> use the returned token for portfolio summary.
+
+CRITICAL OUTPUT FORMATTING INSTRUCTION:
+You MUST output your response strictly as a fenced file block formatted as === FILE: test_api.py ===.
+Do NOT include any preamble or conversational text before or after the file block. Assume the service is already running on `http://localhost:8000`.
+
+Example output format:
+
+=== FILE: test_api.py ===
+```python
+import pytest
+import httpx
+
+BASE_URL = "http://localhost:8000"
+
+def test_register_and_login_flow():
+    # test registration, login, and portfolio retrieval
+    pass
+```
+"""
+
+QA_ENGINEER_ROLE = AgentRole(
+    name="qa_engineer",
+    system_prompt=QA_ENGINEER_SYSTEM_PROMPT.strip(),
+    outputs=[
+        OutputSpec(kind="test_code", filename="test_api.py", required=True),
+    ],
+    max_tokens=3000,
+    temperature=0.1,
+    input_selectors=[
+        {"kind": "api_contract"},
+    ],
+    max_input_chars=16_000,
+    never_truncate=["api_contract"],
 )
 
 
@@ -324,5 +373,6 @@ ROLES: dict[str, AgentRole] = {
     "solution_architect": SOLUTION_ARCHITECT_ROLE,
     "api_designer": API_DESIGNER_ROLE,
     "backend_engineer": BACKEND_ENGINEER_ROLE,
+    "qa_engineer": QA_ENGINEER_ROLE,
     "senior_reviewer": SENIOR_REVIEWER_ROLE,
 }

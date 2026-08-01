@@ -249,7 +249,12 @@ async def create_rework_subchain(
     all_exec = list(all_exec_res.scalars().all())
     prev_exec_node = max(all_exec, key=lambda n: getattr(n, "attempt", 1)) if all_exec else None
 
-    # Determine feedback artifact type: failure_context (objective runtime) vs review_feedback (subjective reviewer)
+    # Determine feedback artifact type: failure_context (objective runtime), review_feedback (subjective reviewer), or test_failure (contract test)
+    is_test_rework = (
+        trigger_node.agent_role == "test_validator"
+        or (prev_exec_node and prev_exec_node.agent_role == "test_executor")
+    )
+
     if trigger_node.agent_role == "senior_reviewer":
         fb_content = {
             "attempt": prev_attempt,
@@ -275,6 +280,59 @@ async def create_rework_subchain(
         buffer_artifact_created(
             event_buffer, run_id, trigger_node.id, "senior_reviewer",
             fb_art_id, "review_feedback.json", "review_feedback", "senior_reviewer", 1,
+        )
+    elif is_test_rework:
+        report_data = {}
+        if prev_exec_node:
+            rep_stmt = (
+                select(Artifact)
+                .where(
+                    Artifact.run_id == run_id,
+                    Artifact.node_id == prev_exec_node.id,
+                    Artifact.kind == "test_report",
+                )
+                .order_by(Artifact.version.desc())
+                .limit(1)
+            )
+            rep_res = await session.execute(rep_stmt)
+            rep_art = rep_res.scalar_one_or_none()
+            if rep_art:
+                try:
+                    report_data = json.loads(rep_art.content)
+                except Exception:
+                    report_data = {"raw_content": rep_art.content}
+
+        raw_pytest_out = report_data.get("pytest_output_tail", "") or trigger_node.logs or ""
+
+        test_failure_summary = {
+            "attempt": prev_attempt,
+            "failed_role": "test_validator",
+            "service_booted": report_data.get("service_booted", False),
+            "tests_collected": report_data.get("tests_collected", 0),
+            "passed": report_data.get("passed", 0),
+            "failed": report_data.get("failed", 0),
+            "failures": verdict_data.get("failures", []),
+            "pytest_output_tail": raw_pytest_out[-3000:] if len(raw_pytest_out) > 3000 else raw_pytest_out,
+        }
+
+        tf_art_id = uuid.uuid4()
+        tf_art = Artifact(
+            id=tf_art_id,
+            project_id=trigger_node.project_id,
+            node_id=trigger_node.id,
+            run_id=run_id,
+            filename="test_failure.json",
+            kind="test_failure",
+            produced_by_role="test_validator",
+            content=json.dumps(test_failure_summary, indent=2),
+            content_type="application/json",
+            version=1,
+            attempt=next_attempt,
+        )
+        session.add(tf_art)
+        buffer_artifact_created(
+            event_buffer, run_id, trigger_node.id, "test_validator",
+            tf_art_id, "test_failure.json", "test_failure", "test_validator", 1,
         )
     else:
         # Fetch execution_report produced by prev_exec_node for failure_context
@@ -357,45 +415,89 @@ async def create_rework_subchain(
                 {"kind": "source_code", "optional": True},
                 {"kind": "failure_context", "optional": True, "exact_attempt": True},
                 {"kind": "review_feedback", "optional": True, "exact_attempt": True},
+                {"kind": "test_failure", "optional": True, "exact_attempt": True},
             ]
         },
     )
 
-    exec_config = {"required_inputs": [{"kind": "source_code", "exact_attempt": True}]}
-    if prev_exec_node and "mock_report" in prev_exec_node.config:
-        mock_rep = dict(prev_exec_node.config["mock_report"])
-        if prev_exec_node.config.get("mock_success_on_retry", False):
-            mock_rep["health_ok"] = True
-            mock_rep["health_status_code"] = 200
-            mock_rep["container_logs_tail"] = "Application started cleanly."
-        exec_config["mock_report"] = mock_rep
-        exec_config["mock_success_on_retry"] = prev_exec_node.config.get("mock_success_on_retry", False)
+    if is_test_rework:
+        exec_config = {
+            "required_inputs": [
+                {"kind": "source_code", "exact_attempt": True},
+                {"kind": "test_code"},  # pulls Attempt 1's test_code forward
+            ]
+        }
+        if prev_exec_node and "mock_report" in prev_exec_node.config:
+            mock_rep = dict(prev_exec_node.config["mock_report"])
+            if prev_exec_node.config.get("mock_success_on_retry", False):
+                mock_rep["service_booted"] = True
+                mock_rep["passed"] = 3
+                mock_rep["failed"] = 0
+                mock_rep["pytest_output_tail"] = "3 passed in 0.15s"
+            exec_config["mock_report"] = mock_rep
+            exec_config["mock_success_on_retry"] = prev_exec_node.config.get("mock_success_on_retry", False)
 
-    new_exec_node = Node(
-        id=new_exec_id,
-        project_id=trigger_node.project_id,
-        run_id=run_id,
-        name=f"BackendExecutor_a{next_attempt}",
-        node_type=NodeType.executor,
-        agent_role="backend_executor",
-        status=NodeStatus.pending,
-        attempt=next_attempt,
-        rework_of_id=prev_exec_node.id if prev_exec_node else None,
-        config=exec_config,
-    )
+        new_exec_node = Node(
+            id=new_exec_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"TestExecutor_a{next_attempt}",
+            node_type=NodeType.executor,
+            agent_role="test_executor",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_exec_node.id if prev_exec_node else None,
+            config=exec_config,
+        )
 
-    new_val_node = Node(
-        id=new_val_id,
-        project_id=trigger_node.project_id,
-        run_id=run_id,
-        name=f"Validator_a{next_attempt}",
-        node_type=NodeType.validator,
-        agent_role="validator",
-        status=NodeStatus.pending,
-        attempt=next_attempt,
-        rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
-        config={"required_inputs": [{"kind": "execution_report", "exact_attempt": True}]},
-    )
+        new_val_node = Node(
+            id=new_val_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"TestValidator_a{next_attempt}",
+            node_type=NodeType.validator,
+            agent_role="test_validator",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
+            config={"required_inputs": [{"kind": "test_report", "exact_attempt": True}]},
+        )
+    else:
+        exec_config = {"required_inputs": [{"kind": "source_code", "exact_attempt": True}]}
+        if prev_exec_node and "mock_report" in prev_exec_node.config:
+            mock_rep = dict(prev_exec_node.config["mock_report"])
+            if prev_exec_node.config.get("mock_success_on_retry", False):
+                mock_rep["health_ok"] = True
+                mock_rep["health_status_code"] = 200
+                mock_rep["container_logs_tail"] = "Application started cleanly."
+            exec_config["mock_report"] = mock_rep
+            exec_config["mock_success_on_retry"] = prev_exec_node.config.get("mock_success_on_retry", False)
+
+        new_exec_node = Node(
+            id=new_exec_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"BackendExecutor_a{next_attempt}",
+            node_type=NodeType.executor,
+            agent_role="backend_executor",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_exec_node.id if prev_exec_node else None,
+            config=exec_config,
+        )
+
+        new_val_node = Node(
+            id=new_val_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"Validator_a{next_attempt}",
+            node_type=NodeType.validator,
+            agent_role="validator",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
+            config={"required_inputs": [{"kind": "execution_report", "exact_attempt": True}]},
+        )
 
     new_rev_node = Node(
         id=new_rev_id,

@@ -19,13 +19,57 @@ async def handle_validator_node(
     Supports both Phase 1.3b execution_report and Phase 0 legacy stdout artifacts.
     NO LLM. Node status is completed in both pass and fail cases.
     """
+    test_report_art = None
     exec_report_art = None
     stdout_art = None
     for art in inputs.values():
-        if art.kind == "execution_report":
+        if art.kind == "test_report":
+            test_report_art = art
+        elif art.kind == "execution_report":
             exec_report_art = art
         elif art.kind == "stdout":
             stdout_art = art
+
+    # TestValidator branch
+    if test_report_art is not None:
+        try:
+            report = json.loads(test_report_art.content)
+        except Exception as exc:
+            return HandlerResult(
+                status=NodeStatus.failed,
+                artifacts=[],
+                logs=f"Validator error parsing test_report JSON: {exc}",
+            )
+
+        service_booted = report.get("service_booted", False)
+        passed_count = report.get("passed", 0)
+        failed_count = report.get("failed", 0)
+
+        passed = bool(service_booted and failed_count == 0 and passed_count > 0)
+        failures = []
+        if not service_booted:
+            failures.append("service_boot_failed")
+        if failed_count > 0:
+            failures.append(f"{failed_count}_tests_failed")
+        if service_booted and passed_count == 0:
+            failures.append("zero_tests_passed")
+
+        verdict_payload = {
+            "passed": passed,
+            "failures": failures,
+        }
+        artifact_spec = ArtifactSpec(
+            kind="verdict",
+            filename="verdict.json",
+            content=json.dumps(verdict_payload, indent=2),
+            content_type="application/json",
+        )
+        return HandlerResult(
+            status=NodeStatus.completed,
+            artifacts=[artifact_spec],
+            logs=f"TestValidator verdict: passed={passed}, failures={failures}",
+            meta={"passed": passed, "failures": failures},
+        )
 
     # Legacy Phase 0 backward compatibility for stdout artifacts
     if exec_report_art is None and stdout_art is not None:
@@ -56,7 +100,7 @@ async def handle_validator_node(
         return HandlerResult(
             status=NodeStatus.failed,
             artifacts=[],
-            logs="Validator error: missing required upstream 'execution_report' artifact.",
+            logs="Validator error: missing required upstream 'execution_report' or 'test_report' artifact.",
         )
 
     try:
