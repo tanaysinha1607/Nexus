@@ -29,12 +29,14 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
     (a) => a.kind === "prompt" && (a.node_id === node.id || a.attempt === node.attempt)
   );
 
-  // Source code files
+  // Source code & Frontend code files
   const sourceCodeArts = nodeArtifacts.filter((a) => a.kind === "source_code");
+  const frontendCodeArts = nodeArtifacts.filter((a) => a.kind === "frontend_code");
 
-  // Execution report
+  // Reports
   const execReportArt = nodeArtifacts.find((a) => a.kind === "execution_report");
   const testReportArt = nodeArtifacts.find((a) => a.kind === "test_report");
+  const buildReportArt = nodeArtifacts.find((a) => a.kind === "build_report");
 
   // Verdict
   const verdictArt = nodeArtifacts.find((a) => a.kind === "verdict");
@@ -108,20 +110,24 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
         {/* 1. VERDICT ARTIFACT (If Validator) */}
         {verdictArt && renderVerdictSection(verdictArt)}
 
-        {/* 2. EXECUTION REPORT ARTIFACT (If Executor) */}
+        {/* 2. EXECUTION / TEST / BUILD REPORT ARTIFACTS */}
         {execReportArt && renderExecutionReportSection(execReportArt)}
         {testReportArt && renderTestReportSection(testReportArt)}
+        {buildReportArt && renderBuildReportSection(buildReportArt)}
 
-        {/* 3. SOURCE CODE ARTIFACTS (If Backend Engineer) */}
+        {/* 3. SOURCE CODE / FRONTEND CODE ARTIFACTS */}
         {sourceCodeArts.length > 0 && renderSourceCodeSection(sourceCodeArts)}
+        {frontendCodeArts.length > 0 && renderSourceCodeSection(frontendCodeArts)}
 
-        {/* 4. OTHER ARTIFACTS (api_contract, prd, architecture, etc.) */}
+        {/* 4. OTHER ARTIFACTS */}
         {nodeArtifacts
           .filter(
             (a) =>
               a.kind !== "source_code" &&
+              a.kind !== "frontend_code" &&
               a.kind !== "execution_report" &&
               a.kind !== "test_report" &&
+              a.kind !== "build_report" &&
               a.kind !== "verdict" &&
               a.kind !== "prompt"
           )
@@ -358,6 +364,89 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
               </span>
             ) : (
               <span className="text-gray-600 italic">No pytest output captured.</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  function renderBuildReportSection(art: ArtifactData) {
+    let report: any = {};
+    try {
+      report = JSON.parse(art.content);
+    } catch {
+      report = {};
+    }
+
+    const buildAttempted = report.build_attempted;
+    const tscExitCode = report.tsc_exit_code ?? 1;
+    const typeErrors = report.type_errors ?? 0;
+    const compiledOk = report.compiled_ok;
+    const tscTail = report.tsc_output_tail || "";
+
+    return (
+      <div className="bg-gray-900/80 border border-blue-800/60 rounded-xl p-5 space-y-4">
+        <h4 className="text-sm font-mono font-bold uppercase text-blue-400 tracking-wider flex items-center gap-2">
+          <span>📘 TypeScript Compiler Build Report</span>
+          <span className="text-[10px] text-blue-500/80 font-normal">tsc --noEmit --strict</span>
+        </h4>
+
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">Container Build</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                buildAttempted
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {buildAttempted ? "SUCCESS" : "FAILED"}
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">tsc Status</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                compiledOk
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {compiledOk ? "CLEAN (Exit 0)" : `ERRORS (Exit ${tscExitCode})`}
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">Type Errors</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                typeErrors > 0
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+              }`}
+            >
+              {typeErrors} ERROR(S)
+            </span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between text-xs font-mono">
+            <span className="text-cyan-300 font-bold uppercase flex items-center gap-1.5">
+              <span>📘 tsc Output Logs</span>
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 font-mono text-xs text-gray-300 max-h-72 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+            {tscTail ? (
+              <span className={compiledOk ? "text-emerald-300" : "text-rose-300 font-medium"}>
+                {tscTail}
+              </span>
+            ) : (
+              <span className="text-gray-600 italic">No tsc output captured.</span>
             )}
           </div>
         </div>

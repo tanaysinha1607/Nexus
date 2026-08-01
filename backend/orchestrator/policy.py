@@ -249,10 +249,15 @@ async def create_rework_subchain(
     all_exec = list(all_exec_res.scalars().all())
     prev_exec_node = max(all_exec, key=lambda n: getattr(n, "attempt", 1)) if all_exec else None
 
-    # Determine feedback artifact type: failure_context (objective runtime), review_feedback (subjective reviewer), or test_failure (contract test)
+    # Determine feedback artifact type: failure_context, review_feedback, test_failure, or build_failure
     is_test_rework = (
         trigger_node.agent_role == "test_validator"
         or (prev_exec_node and prev_exec_node.agent_role == "test_executor")
+    )
+    is_frontend_rework = (
+        trigger_node.agent_role == "build_validator"
+        or (prev_exec_node and prev_exec_node.agent_role == "build_executor")
+        or trigger_node.name.startswith("BuildValidator")
     )
 
     if trigger_node.agent_role == "senior_reviewer":
@@ -280,6 +285,58 @@ async def create_rework_subchain(
         buffer_artifact_created(
             event_buffer, run_id, trigger_node.id, "senior_reviewer",
             fb_art_id, "review_feedback.json", "review_feedback", "senior_reviewer", 1,
+        )
+    elif is_frontend_rework:
+        report_data = {}
+        if prev_exec_node:
+            rep_stmt = (
+                select(Artifact)
+                .where(
+                    Artifact.run_id == run_id,
+                    Artifact.node_id == prev_exec_node.id,
+                    Artifact.kind == "build_report",
+                )
+                .order_by(Artifact.version.desc())
+                .limit(1)
+            )
+            rep_res = await session.execute(rep_stmt)
+            rep_art = rep_res.scalar_one_or_none()
+            if rep_art:
+                try:
+                    report_data = json.loads(rep_art.content)
+                except Exception:
+                    report_data = {"raw_content": rep_art.content}
+
+        raw_tsc_out = report_data.get("tsc_output_tail", "") or trigger_node.logs or ""
+
+        build_failure_summary = {
+            "attempt": prev_attempt,
+            "failed_role": "build_validator",
+            "build_attempted": report_data.get("build_attempted", False),
+            "tsc_exit_code": report_data.get("tsc_exit_code", 1),
+            "type_errors": report_data.get("type_errors", 0),
+            "failures": verdict_data.get("failures", []),
+            "tsc_output_tail": raw_tsc_out[-3000:] if len(raw_tsc_out) > 3000 else raw_tsc_out,
+        }
+
+        bf_art_id = uuid.uuid4()
+        bf_art = Artifact(
+            id=bf_art_id,
+            project_id=trigger_node.project_id,
+            node_id=trigger_node.id,
+            run_id=run_id,
+            filename="build_failure.json",
+            kind="build_failure",
+            produced_by_role="build_validator",
+            content=json.dumps(build_failure_summary, indent=2),
+            content_type="application/json",
+            version=1,
+            attempt=next_attempt,
+        )
+        session.add(bf_art)
+        buffer_artifact_created(
+            event_buffer, run_id, trigger_node.id, "build_validator",
+            bf_art_id, "build_failure.json", "build_failure", "build_validator", 1,
         )
     elif is_test_rework:
         report_data = {}
@@ -393,38 +450,95 @@ async def create_rework_subchain(
             "validator" if trigger_node.node_type == NodeType.validator else "system", 1,
         )
 
-    # 2. Create 4 new nodes: Backend#(N+1) -> Executor#(N+1) -> Validator#(N+1) -> Reviewer#(N+1)
-    new_backend_id = uuid.uuid4()
+    # 2. Create 4 new nodes: Producer#(N+1) -> Executor#(N+1) -> Validator#(N+1) -> Reviewer#(N+1)
+    new_producer_id = uuid.uuid4()
     new_exec_id = uuid.uuid4()
     new_val_id = uuid.uuid4()
     new_rev_id = uuid.uuid4()
 
-    new_backend_node = Node(
-        id=new_backend_id,
-        project_id=trigger_node.project_id,
-        run_id=run_id,
-        name=f"Backend_a{next_attempt}",
-        node_type=NodeType.agent,
-        agent_role="backend_engineer",
-        status=NodeStatus.pending,
-        attempt=next_attempt,
-        rework_of_id=prev_backend_node.id,
-        config={
-            "required_inputs": [
-                {"kind": "api_contract"},
-                {"kind": "source_code", "optional": True},
-                {"kind": "failure_context", "optional": True, "exact_attempt": True},
-                {"kind": "review_feedback", "optional": True, "exact_attempt": True},
-                {"kind": "test_failure", "optional": True, "exact_attempt": True},
-            ]
-        },
-    )
+    if is_frontend_rework:
+        new_producer_node = Node(
+            id=new_producer_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"Frontend_a{next_attempt}",
+            node_type=NodeType.agent,
+            agent_role="frontend_engineer",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_backend_node.id,
+            config={
+                "required_inputs": [
+                    {"kind": "api_contract"},
+                    {"kind": "frontend_code", "optional": True},
+                    {"kind": "build_failure", "optional": True, "exact_attempt": True},
+                    {"kind": "review_feedback", "optional": True, "exact_attempt": True},
+                ]
+            },
+        )
 
-    if is_test_rework:
+        exec_config = {"required_inputs": [{"kind": "frontend_code", "exact_attempt": True}]}
+        if prev_exec_node and "mock_report" in prev_exec_node.config:
+            mock_rep = dict(prev_exec_node.config["mock_report"])
+            if prev_exec_node.config.get("mock_success_on_retry", False):
+                mock_rep["build_attempted"] = True
+                mock_rep["tsc_exit_code"] = 0
+                mock_rep["type_errors"] = 0
+                mock_rep["compiled_ok"] = True
+            exec_config["mock_report"] = mock_rep
+            exec_config["mock_success_on_retry"] = prev_exec_node.config.get("mock_success_on_retry", False)
+
+        new_exec_node = Node(
+            id=new_exec_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"BuildExecutor_a{next_attempt}",
+            node_type=NodeType.executor,
+            agent_role="build_executor",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_exec_node.id if prev_exec_node else None,
+            config=exec_config,
+        )
+
+        new_val_node = Node(
+            id=new_val_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"BuildValidator_a{next_attempt}",
+            node_type=NodeType.validator,
+            agent_role="build_validator",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
+            config={"required_inputs": [{"kind": "build_report", "exact_attempt": True}]},
+        )
+    elif is_test_rework:
+        new_producer_node = Node(
+            id=new_producer_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"Backend_a{next_attempt}",
+            node_type=NodeType.agent,
+            agent_role="backend_engineer",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_backend_node.id,
+            config={
+                "required_inputs": [
+                    {"kind": "api_contract"},
+                    {"kind": "source_code", "optional": True},
+                    {"kind": "failure_context", "optional": True, "exact_attempt": True},
+                    {"kind": "review_feedback", "optional": True, "exact_attempt": True},
+                    {"kind": "test_failure", "optional": True, "exact_attempt": True},
+                ]
+            },
+        )
+
         exec_config = {
             "required_inputs": [
                 {"kind": "source_code", "exact_attempt": True},
-                {"kind": "test_code"},  # pulls Attempt 1's test_code forward
+                {"kind": "test_code"},
             ]
         }
         if prev_exec_node and "mock_report" in prev_exec_node.config:
@@ -463,6 +577,27 @@ async def create_rework_subchain(
             config={"required_inputs": [{"kind": "test_report", "exact_attempt": True}]},
         )
     else:
+        new_producer_node = Node(
+            id=new_producer_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"Backend_a{next_attempt}",
+            node_type=NodeType.agent,
+            agent_role="backend_engineer",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_backend_node.id,
+            config={
+                "required_inputs": [
+                    {"kind": "api_contract"},
+                    {"kind": "source_code", "optional": True},
+                    {"kind": "failure_context", "optional": True, "exact_attempt": True},
+                    {"kind": "review_feedback", "optional": True, "exact_attempt": True},
+                    {"kind": "test_failure", "optional": True, "exact_attempt": True},
+                ]
+            },
+        )
+
         exec_config = {"required_inputs": [{"kind": "source_code", "exact_attempt": True}]}
         if prev_exec_node and "mock_report" in prev_exec_node.config:
             mock_rep = dict(prev_exec_node.config["mock_report"])
@@ -518,17 +653,17 @@ async def create_rework_subchain(
         },
     )
 
-    session.add_all([new_backend_node, new_exec_node, new_val_node, new_rev_node])
+    session.add_all([new_producer_node, new_exec_node, new_val_node, new_rev_node])
 
     # Add NodeDependency edges
-    dep1 = NodeDependency(node_id=new_backend_id, depends_on_node_id=trigger_node.id)
-    dep2 = NodeDependency(node_id=new_exec_id, depends_on_node_id=new_backend_id)
+    dep1 = NodeDependency(node_id=new_producer_id, depends_on_node_id=trigger_node.id)
+    dep2 = NodeDependency(node_id=new_exec_id, depends_on_node_id=new_producer_id)
     dep3 = NodeDependency(node_id=new_val_id, depends_on_node_id=new_exec_id)
     dep4 = NodeDependency(node_id=new_rev_id, depends_on_node_id=new_val_id)
     session.add_all([dep1, dep2, dep3, dep4])
 
     # Buffer node_created events
-    for n in [new_backend_node, new_exec_node, new_val_node, new_rev_node]:
+    for n in [new_producer_node, new_exec_node, new_val_node, new_rev_node]:
         buffer_node_created(
             event_buffer,
             run_id,
@@ -538,4 +673,4 @@ async def create_rework_subchain(
             n.status.value,
         )
 
-    return [new_backend_node, new_exec_node, new_val_node, new_rev_node]
+    return [new_producer_node, new_exec_node, new_val_node, new_rev_node]

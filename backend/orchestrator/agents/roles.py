@@ -306,6 +306,79 @@ QA_ENGINEER_ROLE = AgentRole(
 
 
 # ---------------------------------------------------------------------------
+# Frontend Engineer Role Definition
+# ---------------------------------------------------------------------------
+
+FRONTEND_ENGINEER_SYSTEM_PROMPT = """You are a frontend engineer (role: frontend_engineer) generating a TYPED TypeScript API client from the API contract (`api_contract.json`).
+The objective check: the code must COMPILE cleanly under `tsc --noEmit --strict`. Because the types are derived from the contract, a passing typecheck proves the frontend client agrees with the contract's shapes.
+
+Generate ONLY:
+- TypeScript interfaces for each in-scope endpoint's request and response (`POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/portfolio/summary`), matching `api_contract.json` field names and types EXACTLY.
+- Typed async client functions using `fetch()` that call the endpoints and return the typed responses.
+
+CRITICAL REQUIREMENTS:
+- Strict TypeScript: NO `any`, NO implicit `any`, all fields and parameters typed.
+- The code MUST compile under `tsc --strict --noEmit`.
+- Emit each file as === FILE: <name>.ts ===. Include `client.ts` (entrypoint, required). You may also emit `types.ts`.
+- Do NOT generate React components, CSS, or HTML — ONLY the typed API client.
+- Do NOT import npm packages beyond what's built-in (use global `fetch`).
+- If a `build_failure` artifact is present, `tsc` reported type errors in a previous attempt — fix the SPECIFIC type errors listed.
+
+Example output format:
+
+=== FILE: types.ts ===
+```typescript
+export interface RegisterRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterResponse {
+  user_id: string;
+  email: string;
+}
+```
+
+=== FILE: client.ts ===
+```typescript
+import { RegisterRequest, RegisterResponse } from "./types";
+
+const BASE_URL = "http://localhost:8000";
+
+export async function registerUser(req: RegisterRequest): Promise<RegisterResponse> {
+  const res = await fetch(`${BASE_URL}/api/v1/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    throw new Error(`Register failed: ${res.statusText}`);
+  }
+  return (await res.json()) as RegisterResponse;
+}
+```
+"""
+
+FRONTEND_ENGINEER_ROLE = AgentRole(
+    name="frontend_engineer",
+    system_prompt=FRONTEND_ENGINEER_SYSTEM_PROMPT.strip(),
+    outputs=[
+        OutputSpec(kind="frontend_code", filename="client.ts", required=True),
+        OutputSpec(kind="frontend_code", filename="types.ts", required=False),
+    ],
+    max_tokens=3000,
+    temperature=0.1,
+    input_selectors=[
+        {"kind": "api_contract"},
+        {"kind": "build_failure"},
+    ],
+    max_input_chars=16_000,
+    never_truncate=["api_contract", "build_failure"],
+    accept_any_file=True,
+)
+
+
+# ---------------------------------------------------------------------------
 # Senior Reviewer Role Definition
 # ---------------------------------------------------------------------------
 
@@ -359,7 +432,8 @@ SENIOR_REVIEWER_ROLE = AgentRole(
     temperature=0.2,
     input_selectors=[
         {"kind": "verdict"},
-        {"kind": "source_code"},
+        {"kind": "source_code", "optional": True},
+        {"kind": "frontend_code", "optional": True},
         {"kind": "api_contract"},
     ],
     max_input_chars=16_000,
@@ -374,5 +448,6 @@ ROLES: dict[str, AgentRole] = {
     "api_designer": API_DESIGNER_ROLE,
     "backend_engineer": BACKEND_ENGINEER_ROLE,
     "qa_engineer": QA_ENGINEER_ROLE,
+    "frontend_engineer": FRONTEND_ENGINEER_ROLE,
     "senior_reviewer": SENIOR_REVIEWER_ROLE,
 }

@@ -112,7 +112,7 @@ def parse_agent_output(
         extracted_files[filename] = block_text.strip()
 
     # Special multi-artifact source code mode (e.g. backend_engineer)
-    if role is not None and getattr(role, "accept_any_file", False):
+    if role is not None and getattr(role, "accept_any_file", False) and role.name == "backend_engineer":
         # 1. Entrypoint check
         if "main.py" not in extracted_files:
             log_reason = "missing entrypoint main.py"

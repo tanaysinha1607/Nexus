@@ -110,6 +110,14 @@ async def resolve_node_readiness(
         if not has_rework_feedback:
             return False, {}
 
+    # Special condition for Frontend Engineer rework: requires at least build_failure or review_feedback for attempt=node_attempt
+    if node.agent_role == "frontend_engineer" and node_attempt > 1:
+        has_rework_feedback = any(
+            k in resolved_inputs for k in ("build_failure", "review_feedback")
+        )
+        if not has_rework_feedback:
+            return False, {}
+
     # Special condition for Senior Reviewer: requires a PASSING validator verdict
     if node.agent_role == "senior_reviewer":
         verdict_art = resolved_inputs.get("verdict")
