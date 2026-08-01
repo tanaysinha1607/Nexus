@@ -80,12 +80,14 @@ Built in strict phases — each fully working and demoable before the next began
 - **Phase 2** ✅ — QA Engineer + Frontend Engineer (contract-based test execution & TypeScript build validation)
     - **2a** ✅ QA Engineer + real contract-based test execution (agent-written pytest runs live against generated code over HTTP)
     - **2b** ✅ Frontend Engineer + real TypeScript build validation (agent-written typed API client compiled in-sandbox via `tsc --noEmit --strict`)
-- **Phase 3** ⬜ — Security + Performance agents backed by real scanners
+- **Phase 3** 🟡 — Security ✅ (real `bandit` AST scanner, deterministic zero-HIGH gate, self-healing on AST vulnerabilities) | Performance ⬜ deferred by design (see note)
 - **Phase 4** ⬜ — Documentation + DevOps agents
 - **Phase 5** ⬜ — GitHub integration, multi-project memory
+
+> **Note on Performance Validation Deferral**: Performance (latency/throughput) validation is intentionally deferred by design. Benchmarking HTTP response times on a shared Docker host is inherently non-deterministic and subject to host CPU/memory load variance. Imposing a rigid latency gate on a shared host would introduce non-deterministic validator failures, directly violating Nexus's core principle that all gate verdicts must be 100% deterministic objective truth.
 
 ## Tests
 
 ```bash
-docker compose exec backend pytest tests/ -m "not live"   # 84 passing, no network
+docker compose exec backend pytest tests/ -m "not live"   # 89 passing, no network
 ```
