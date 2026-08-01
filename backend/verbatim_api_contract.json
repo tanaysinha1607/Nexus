@@ -1,0 +1,352 @@
+{
+  "endpoints": [
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/register",
+      "summary": "Register a new user account",
+      "request_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": ["id", "email", "created_at"],
+        "additionalProperties": false
+      },
+      "auth_required": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/login",
+      "summary": "Authenticate user and issue JWT access & refresh tokens",
+      "request_schema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "required": ["email", "password"],
+        "additionalProperties": false
+      },
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "access_token": {
+            "type": "string"
+          },
+          "refresh_token": {
+            "type": "string"
+          },
+          "token_type": {
+            "type": "string",
+            "enum": ["bearer"]
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Access token lifetime in seconds"
+          },
+          "user": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "email": {
+                "type": "string",
+                "format": "email"
+              }
+            },
+            "required": ["id", "email"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["access_token", "refresh_token", "token_type", "expires_in", "user"],
+        "additionalProperties": false
+      },
+      "auth_required": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/portfolio/summary",
+      "summary": "Retrieve portfolio cash balance, positions and aggregated P&L",
+      "request_schema": {},
+      "response_schema": {
+        "type": "object",
+        "properties": {
+          "cash_balance": {
+            "type": "string",
+            "description": "Cash balance as decimal string"
+          },
+          "total_equity": {
+            "type": "string",
+            "description": "Cash + market value of all positions"
+          },
+          "positions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "symbol": {
+                  "type": "string",
+                  "description": "Trading pair symbol, e.g., BTC/USD"
+                },
+                "amount": {
+                  "type": "string",
+                  "description": "Quantity held"
+                },
+                "avg_price": {
+                  "type": "string",
+                  "description": "Average entry price"
+                },
+                "market_price": {
+                  "type": "string",
+                  "description": "Latest market price from Redis cache"
+                },
+                "unrealized_pnl": {
+                  "type": "string",
+                  "description": "Unrealized profit & loss"
+                }
+              },
+              "required": ["symbol", "amount", "avg_price", "market_price", "unrealized_pnl"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["cash_balance", "total_equity", "positions"],
+        "additionalProperties": false
+      },
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/verify",
+      "summary": "Verify email activation token",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/refresh",
+      "summary": "Refresh JWT access token using a valid refresh token",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/2fa/enable",
+      "summary": "Enable TOTP two‑factor authentication for the user",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/password-reset/request",
+      "summary": "Request a password‑reset email",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/auth/password-reset/confirm",
+      "summary": "Confirm password reset with token and new password",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/profile/me",
+      "summary": "Get current authenticated user profile",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/portfolio/positions",
+      "summary": "List detailed positions for the authenticated user",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/portfolio/trades",
+      "summary": "Retrieve trade history with optional filters",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/orders",
+      "summary": "Place a new order (market, limit, stop‑limit)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/orders/{id}",
+      "summary": "Get status of a specific order",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/market/ticker/{symbol}",
+      "summary": "Get latest ticker price for a symbol",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/market/candles/{symbol}",
+      "summary": "Get historical OHLCV candles for a symbol",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/charts/{symbol}",
+      "summary": "Provide chart configuration data for frontend",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/users",
+      "summary": "List all users (admin only)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/users",
+      "summary": "Create a new user (admin only)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "PATCH",
+      "path": "/api/v1/admin/users/{id}",
+      "summary": "Update user attributes (admin only)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/admin/users/{id}",
+      "summary": "Soft‑delete a user (admin only)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/admin/audit-logs",
+      "summary": "View audit log entries (admin only)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/admin/market-feed",
+      "summary": "Configure external market data feed (admin only)",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/api-keys",
+      "summary": "Generate a new encrypted API key for the user",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/api-keys",
+      "summary": "List API keys belonging to the authenticated user",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "DELETE",
+      "path": "/api/v1/api-keys/{id}",
+      "summary": "Revoke an API key",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "POST",
+      "path": "/api/v1/gdpr/delete",
+      "summary": "Request personal data erasure per GDPR",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/healthz",
+      "summary": "Liveness probe",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    },
+    {
+      "method": "GET",
+      "path": "/api/v1/readyz",
+      "summary": "Readiness probe",
+      "request_schema": {},
+      "response_schema": {},
+      "auth_required": false
+    }
+  ]
+}
