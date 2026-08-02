@@ -81,13 +81,26 @@ Built in strict phases — each fully working and demoable before the next began
     - **2a** ✅ QA Engineer + real contract-based test execution (agent-written pytest runs live against generated code over HTTP)
     - **2b** ✅ Frontend Engineer + real TypeScript build validation (agent-written typed API client compiled in-sandbox via `tsc --noEmit --strict`)
 - **Phase 3** 🟡 — Security ✅ (real `bandit` AST scanner, deterministic zero-HIGH gate, self-healing on AST vulnerabilities) | Performance ⬜ deferred by design (see note)
-- **Phase 4** ⬜ — Documentation + DevOps agents
+- **Phase 4** 🟡 — DevOps ✅ (real `hadolint` AST linter + `docker build` compilation, self-healing on Dockerfile errors) | Documentation ⬜ deferred by design (see note)
 - **Phase 5** ⬜ — GitHub integration, multi-project memory
 
+### Deterministic Execution & Validation Gates Summary
+
+| Gate | Tool / Real Engine | Target Artifact | Deterministic Gate Rule |
+|------|-------------------|-----------------|------------------------|
+| **Backend Boot** | Real Docker Container | `execution_report` | `build_success AND container_started AND health_ok (200)` |
+| **QA Integration** | Real `pytest` over HTTP | `test_report` | `service_booted AND failed == 0 AND passed > 0` |
+| **Frontend Client** | `tsc --noEmit --strict` | `build_report` | `build_attempted AND type_errors == 0 AND compiled_ok` |
+| **Security SAST** | `bandit -f json -r .` | `security_report` | `scan_completed AND high_count == 0` |
+| **DevOps Container** | `hadolint` + `docker build` | `devops_report` | `hadolint_ran AND error_count == 0 AND build_success` |
+| **Subjective Review** | Senior Reviewer Agent | `verdict` | `reviewer_verdict == "approved"` |
+
 > **Note on Performance Validation Deferral**: Performance (latency/throughput) validation is intentionally deferred by design. Benchmarking HTTP response times on a shared Docker host is inherently non-deterministic and subject to host CPU/memory load variance. Imposing a rigid latency gate on a shared host would introduce non-deterministic validator failures, directly violating Nexus's core principle that all gate verdicts must be 100% deterministic objective truth.
+
+> **Note on Documentation Agent Deferral**: A Documentation agent is intentionally deferred by design. Documentation quality ("is this README good?") has no deterministic objective gate, which would violate Nexus's core guarantee that all validator verdicts must be 100% objective truth. Documentation quality remains under the Senior Reviewer's subjective review scope.
 
 ## Tests
 
 ```bash
-docker compose exec backend pytest tests/ -m "not live"   # 89 passing, no network
+docker compose exec backend pytest tests/ -m "not live"   # 94 passing, no network
 ```
