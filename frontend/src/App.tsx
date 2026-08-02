@@ -327,6 +327,42 @@ export default function App() {
                     Checks: {verdictResult === "PASS" ? "PASSED" : "FAILED"}
                   </div>
                 )}
+
+                {/* GitHub PR Integration Chip or Button */}
+                {run.pr_url ? (
+                  <a
+                    href={run.pr_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/40 text-xs font-mono font-bold flex items-center gap-1.5 hover:bg-purple-500/30 transition-all"
+                  >
+                    <span className="text-sm">🚢</span> Shipped: PR #{run.pr_url.split("/").pop()}
+                  </a>
+                ) : (
+                  run.status === "completed" && verdictResult === "PASS" && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`http://localhost:8000/api/runs/${run.id}/open_pr`, {
+                            method: "POST",
+                          });
+                          if (res.ok) {
+                            const data = await res.json();
+                            setRun((prev) => (prev ? { ...prev, pr_url: data.pr_url } : null));
+                          } else {
+                            const err = await res.json();
+                            alert(`Failed to open PR: ${err.detail}`);
+                          }
+                        } catch (e) {
+                          alert(`Error opening PR: ${e}`);
+                        }
+                      }}
+                      className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-mono text-xs font-bold hover:bg-indigo-500 transition-all shadow-md shadow-indigo-950 flex items-center gap-1.5"
+                    >
+                      <span>🐙</span> Ship to GitHub (Open PR)
+                    </button>
+                  )
+                )}
               </div>
             </div>
           </div>

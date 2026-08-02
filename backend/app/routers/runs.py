@@ -734,3 +734,28 @@ async def run_events_websocket(websocket: WebSocket, run_id: uuid.UUID):
     """WebSocket endpoint streaming live transition events for a run via Redis Pub/Sub."""
     redis_client = websocket.app.state.redis
     await handle_ws_subscription(websocket, run_id, redis_client)
+
+
+@router.post("/api/runs/{run_id}/open_pr")
+async def open_pr_endpoint(
+    run_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Open a GitHub Pull Request for a passing run.
+
+    Returns 409 Conflict if the run did not pass its verification gates.
+    """
+    from app.integrations.github_pr import open_github_pr
+
+    run_obj = await db.get(Run, run_id)
+    if not run_obj:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    try:
+        pr_url = await open_github_pr(db, run_id)
+        return {"pr_url": pr_url}
+    except ValueError as ve:
+        raise HTTPException(status_code=409, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to open GitHub PR: {str(e)}")
+

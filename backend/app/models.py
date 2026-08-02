@@ -135,6 +135,7 @@ class Run(Base):
     seq_counter = Column(BigInteger, nullable=False, default=0)
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
+    pr_url = Column(String(512), nullable=True)
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,

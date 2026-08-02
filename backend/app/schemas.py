@@ -41,6 +41,7 @@ class RunOut(BaseModel):
     seq_counter: int
     started_at: datetime | None
     finished_at: datetime | None
+    pr_url: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

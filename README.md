@@ -123,7 +123,7 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 - **Phase 2b** ✅ — Frontend Engineer agent + typed TypeScript API client `tsc --noEmit --strict` compilation.
 - **Phase 3** 🟡 — Security agent ✅ (`bandit` AST scanner, zero-HIGH gate) | Performance ⬜ deferred by design.
 - **Phase 4** 🟡 — DevOps agent ✅ (`hadolint` AST linter + `docker build` compilation) | Documentation ⬜ deferred by design.
-- **Phase 5** ⬜ — GitHub integration & multi-project memory (planned).
+- **Phase 5** 🟡 — GitHub PR integration ✅ (ships verified code from passing runs as real PRs to target repository with 0 LLM tokens) | Multi-project memory ⬜ deferred by scope.
 
 ---
 
@@ -147,6 +147,8 @@ Copy `.env.example` to `.env` and supply your LLM provider API key:
 NEXUS_LLM_PROVIDER=groq
 NEXUS_LLM_MODEL=openai/gpt-oss-120b
 GROQ_API_KEY=gsk_your_groq_api_key_here
+GITHUB_TOKEN=github_pat_your_token_here
+GITHUB_OUTPUT_REPO=tanaysinha1607/nexus-output
 ```
 
 ### 2. Start Full Stack
@@ -160,7 +162,7 @@ docker compose up --build
 ```bash
 docker compose exec backend pytest tests/ -m "not live"
 ```
-*Result*: **94 passing unit tests** (single invocation, isolated, no network).
+*Result*: **99 passing unit tests** (single invocation, isolated, no network).
 
 ---
 
