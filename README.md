@@ -123,7 +123,16 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 - **Phase 2b** ✅ — Frontend Engineer agent + typed TypeScript API client `tsc --noEmit --strict` compilation.
 - **Phase 3** 🟡 — Security agent ✅ (`bandit` AST scanner, zero-HIGH gate) | Performance ⬜ deferred by design.
 - **Phase 4** 🟡 — DevOps agent ✅ (`hadolint` AST linter + `docker build` compilation) | Documentation ⬜ deferred by design.
-- **Phase 5** 🟡 — GitHub PR integration ✅ (ships verified code from passing runs as real PRs to target repository with 0 LLM tokens) | Multi-project memory ⬜ deferred by scope.
+- **Phase 5** 🟡 — GitHub PR integration ✅ (ships verified code as a real PR) | Multi-project memory ⬜ deferred (stretch).
+
+---
+
+## Autonomous Shipping: GitHub PR Integration
+
+Nexus ships its verified output as a real pull request. Once every gate in a run produces a passing verdict and the Senior Reviewer approves the code, Nexus automatically commits the attempt-scoped verified files (`main.py`, `requirements.txt`, `Dockerfile`, etc.) to a dedicated branch and opens a GitHub Pull Request with zero LLM tokens.
+
+- **Real Live Demo Pull Request**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2)
+- **Verified Code & Telemetry**: Contains real generated FastAPI backend code for a cryptocurrency paper trading platform, complete with execution gate checklist telemetry (`Runtime`, `Security: bandit 0 HIGH findings`, `Senior Reviewer Approval`).
 
 ---
 
