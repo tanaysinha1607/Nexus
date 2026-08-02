@@ -545,6 +545,95 @@ async def create_run(
             (exec_node.id, val_node.id),
             (val_node.id, reviewer_node.id),
         ]
+    elif graph == "pm_arch_backend_devops":
+        pm_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="PM",
+            node_type=NodeType.agent,
+            agent_role="product_manager",
+            config={"required_inputs": [{"kind": "user_prompt"}]},
+        )
+        arch_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="Architect",
+            node_type=NodeType.agent,
+            agent_role="solution_architect",
+            config={"required_inputs": [{"kind": "prd"}]},
+        )
+        api_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="ApiDesigner",
+            node_type=NodeType.agent,
+            agent_role="api_designer",
+            config={"required_inputs": [{"kind": "architecture"}]},
+        )
+        backend_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="Backend",
+            node_type=NodeType.agent,
+            agent_role="backend_engineer",
+            config={"required_inputs": [{"kind": "api_contract"}]},
+        )
+        devops_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="DevOps",
+            node_type=NodeType.agent,
+            agent_role="devops_engineer",
+            config={"required_inputs": [{"kind": "source_code"}]},
+        )
+        exec_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="DevOpsExecutor",
+            node_type=NodeType.executor,
+            agent_role="devops_executor",
+            config={"required_inputs": [{"kind": "dockerfile"}, {"kind": "source_code"}]},
+        )
+        val_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="DevOpsValidator",
+            node_type=NodeType.validator,
+            agent_role="devops_validator",
+            config={"required_inputs": [{"kind": "devops_report"}]},
+        )
+        reviewer_node = Node(
+            id=uuid.uuid4(),
+            project_id=project_id,
+            run_id=run_id,
+            name="Reviewer",
+            node_type=NodeType.agent,
+            agent_role="senior_reviewer",
+            config={
+                "required_inputs": [
+                    {"kind": "verdict"},
+                    {"kind": "source_code"},
+                    {"kind": "api_contract"},
+                ]
+            },
+        )
+        nodes = [pm_node, arch_node, api_node, backend_node, devops_node, exec_node, val_node, reviewer_node]
+        edge_pairs = [
+            (pm_node.id, arch_node.id),
+            (arch_node.id, api_node.id),
+            (api_node.id, backend_node.id),
+            (backend_node.id, devops_node.id),
+            (devops_node.id, exec_node.id),
+            (exec_node.id, val_node.id),
+            (val_node.id, reviewer_node.id),
+        ]
     else:
         node_specs, raw_edges = build_seed_graph_specs(project_id, run_id, fail_executor=fail_executor)
 
@@ -592,8 +681,8 @@ async def create_run(
     await db.commit()
     await db.refresh(run_obj)
 
-    # Use RedisEventBus with shared redis client from app.state.redis
-    event_bus = RedisEventBus(request.app.state.redis)
+    # Use RedisEventBus with shared redis client from app.state.redis if request is provided
+    event_bus = RedisEventBus(request.app.state.redis) if request is not None and hasattr(request, "app") else None
 
     scheduler = RunScheduler(
         session_factory=async_session,

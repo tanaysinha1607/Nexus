@@ -264,6 +264,11 @@ async def create_rework_subchain(
         or (prev_exec_node and prev_exec_node.agent_role == "security_executor")
         or trigger_node.name.startswith("SecurityValidator")
     )
+    is_devops_rework = (
+        trigger_node.agent_role == "devops_validator"
+        or (prev_exec_node and prev_exec_node.agent_role == "devops_executor")
+        or trigger_node.name.startswith("DevOpsValidator")
+    )
 
     if trigger_node.agent_role == "senior_reviewer":
         fb_content = {
@@ -338,6 +343,58 @@ async def create_rework_subchain(
         buffer_artifact_created(
             event_buffer, run_id, trigger_node.id, "security_validator",
             sf_art_id, "security_finding.json", "security_finding", "security_validator", 1,
+        )
+    elif is_devops_rework:
+        report_data = {}
+        if prev_exec_node:
+            rep_stmt = (
+                select(Artifact)
+                .where(
+                    Artifact.run_id == run_id,
+                    Artifact.node_id == prev_exec_node.id,
+                    Artifact.kind == "devops_report",
+                )
+                .order_by(Artifact.version.desc())
+                .limit(1)
+            )
+            rep_res = await session.execute(rep_stmt)
+            rep_art = rep_res.scalar_one_or_none()
+            if rep_art:
+                try:
+                    report_data = json.loads(rep_art.content)
+                except Exception:
+                    report_data = {"raw_content": rep_art.content}
+
+        devops_finding_summary = {
+            "attempt": prev_attempt,
+            "failed_role": "devops_validator",
+            "hadolint_ran": report_data.get("hadolint_ran", False),
+            "error_count": report_data.get("error_count", 0),
+            "warning_count": report_data.get("warning_count", 0),
+            "hadolint_findings": report_data.get("hadolint_findings", []),
+            "build_success": report_data.get("build_success", False),
+            "build_logs_tail": report_data.get("build_logs_tail", ""),
+            "failures": verdict_data.get("failures", []),
+        }
+
+        df_art_id = uuid.uuid4()
+        df_art = Artifact(
+            id=df_art_id,
+            project_id=trigger_node.project_id,
+            node_id=trigger_node.id,
+            run_id=run_id,
+            filename="devops_finding.json",
+            kind="devops_finding",
+            produced_by_role="devops_validator",
+            content=json.dumps(devops_finding_summary, indent=2),
+            content_type="application/json",
+            version=1,
+            attempt=next_attempt,
+        )
+        session.add(df_art)
+        buffer_artifact_created(
+            event_buffer, run_id, trigger_node.id, "devops_validator",
+            df_art_id, "devops_finding.json", "devops_finding", "devops_validator", 1,
         )
     elif is_frontend_rework:
         report_data = {}
@@ -566,6 +623,67 @@ async def create_rework_subchain(
             attempt=next_attempt,
             rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
             config={"required_inputs": [{"kind": "security_report", "exact_attempt": True}]},
+        )
+    elif is_devops_rework:
+        new_producer_node = Node(
+            id=new_producer_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"DevOps_a{next_attempt}",
+            node_type=NodeType.agent,
+            agent_role="devops_engineer",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_backend_node.id if prev_backend_node else trigger_node.id,
+            config={
+                "required_inputs": [
+                    {"kind": "source_code"},
+                    {"kind": "devops_finding", "optional": True, "exact_attempt": True},
+                    {"kind": "review_feedback", "optional": True, "exact_attempt": True},
+                ]
+            },
+        )
+
+        exec_config = {
+            "required_inputs": [
+                {"kind": "dockerfile", "exact_attempt": True},
+                {"kind": "source_code"},
+            ]
+        }
+        if prev_exec_node and "mock_report" in prev_exec_node.config:
+            mock_rep = dict(prev_exec_node.config["mock_report"])
+            if prev_exec_node.config.get("mock_success_on_retry", False):
+                mock_rep["hadolint_ran"] = True
+                mock_rep["error_count"] = 0
+                mock_rep["hadolint_findings"] = []
+                mock_rep["build_success"] = True
+            exec_config["mock_report"] = mock_rep
+            exec_config["mock_success_on_retry"] = prev_exec_node.config.get("mock_success_on_retry", False)
+
+        new_exec_node = Node(
+            id=new_exec_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"DevOpsExecutor_a{next_attempt}",
+            node_type=NodeType.executor,
+            agent_role="devops_executor",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=prev_exec_node.id if prev_exec_node else None,
+            config=exec_config,
+        )
+
+        new_val_node = Node(
+            id=new_val_id,
+            project_id=trigger_node.project_id,
+            run_id=run_id,
+            name=f"DevOpsValidator_a{next_attempt}",
+            node_type=NodeType.validator,
+            agent_role="devops_validator",
+            status=NodeStatus.pending,
+            attempt=next_attempt,
+            rework_of_id=trigger_node.id if trigger_node.node_type == NodeType.validator else None,
+            config={"required_inputs": [{"kind": "devops_report", "exact_attempt": True}]},
         )
     elif is_frontend_rework:
         new_producer_node = Node(

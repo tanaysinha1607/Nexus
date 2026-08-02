@@ -19,13 +19,16 @@ async def handle_validator_node(
     Supports both Phase 1.3b execution_report and Phase 0 legacy stdout artifacts.
     NO LLM. Node status is completed in both pass and fail cases.
     """
+    devops_report_art = None
     security_report_art = None
     build_report_art = None
     test_report_art = None
     exec_report_art = None
     stdout_art = None
     for art in inputs.values():
-        if art.kind == "security_report":
+        if art.kind == "devops_report":
+            devops_report_art = art
+        elif art.kind == "security_report":
             security_report_art = art
         elif art.kind == "build_report":
             build_report_art = art
@@ -35,6 +38,51 @@ async def handle_validator_node(
             exec_report_art = art
         elif art.kind == "stdout":
             stdout_art = art
+
+    # DevOpsValidator branch (Phase 4 hadolint + docker build check)
+    if devops_report_art is not None:
+        try:
+            report = json.loads(devops_report_art.content)
+        except Exception as exc:
+            return HandlerResult(
+                status=NodeStatus.failed,
+                artifacts=[],
+                logs=f"Validator error parsing devops_report JSON: {exc}",
+            )
+
+        hadolint_ran = report.get("hadolint_ran", False)
+        error_count = report.get("error_count", 0)
+        hadolint_findings = report.get("hadolint_findings", [])
+        build_success = report.get("build_success", False)
+        build_logs_tail = report.get("build_logs_tail", "")
+
+        passed = bool(hadolint_ran and error_count == 0 and build_success)
+        failures = []
+        if not hadolint_ran:
+            failures.append("hadolint_linter_failed_to_run")
+        if error_count > 0:
+            for f in hadolint_findings:
+                loc = f"line {f.get('line')}" if f.get("line") else "Dockerfile"
+                failures.append(f"HADOLINT_ERROR [{f.get('code')}] {f.get('message')} at {loc}")
+        if not build_success:
+            failures.append(f"DOCKER_BUILD_FAILED: {build_logs_tail[-300:]}")
+
+        verdict_payload = {
+            "passed": passed,
+            "failures": failures,
+        }
+        artifact_spec = ArtifactSpec(
+            kind="verdict",
+            filename="verdict.json",
+            content=json.dumps(verdict_payload, indent=2),
+            content_type="application/json",
+        )
+        return HandlerResult(
+            status=NodeStatus.completed,
+            artifacts=[artifact_spec],
+            logs=f"DevOpsValidator verdict: passed={passed}, failures={failures}",
+            meta={"passed": passed, "failures": failures},
+        )
 
     # SecurityValidator branch (Phase 3 Bandit AST security scan)
     if security_report_art is not None:

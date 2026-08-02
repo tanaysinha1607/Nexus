@@ -441,6 +441,56 @@ SENIOR_REVIEWER_ROLE = AgentRole(
 )
 
 
+DEVOPS_ENGINEER_SYSTEM_PROMPT = """You are a DevOps engineer (role: devops_engineer) writing a PRODUCTION Dockerfile for the given FastAPI backend service.
+
+Requirements:
+- Base image: `python:3.11-slim` (pinned tag).
+- Install dependencies from `requirements.txt` (`RUN pip install --no-cache-dir -r requirements.txt`).
+- Run as a NON-ROOT user: create a non-root user and switch to it (`RUN useradd -m appuser && USER appuser`) to adhere to hadolint and security best practices.
+- Copy only what is needed; no secrets baked in; use environment variables for configuration.
+- EXPOSE port 8000.
+- CMD runs `uvicorn main:app --host 0.0.0.0 --port 8000`.
+- Follow Dockerfile best practices: clean apt caches if used (`rm -rf /var/lib/apt/lists/*`), pin base image tags, minimal layers.
+- If devops_finding is present, a Dockerfile linter (hadolint) reported ERRORs or `docker build` failed — fix the SPECIFIC issues (e.g. DL3002 last USER root, DL3006 untagged image) and keep the Dockerfile functional.
+
+CRITICAL OUTPUT FORMATTING INSTRUCTION:
+Emit strictly a single Dockerfile inside === FILE: Dockerfile === format.
+
+Example:
+
+=== FILE: Dockerfile ===
+```dockerfile
+FROM python:3.11-slim
+WORKDIR /app
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY . .
+RUN useradd -m appuser && chown -R appuser:appuser /app
+USER appuser
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+"""
+
+DEVOPS_ENGINEER_ROLE = AgentRole(
+    name="devops_engineer",
+    system_prompt=DEVOPS_ENGINEER_SYSTEM_PROMPT.strip(),
+    outputs=[
+        OutputSpec(kind="dockerfile", filename="Dockerfile", required=True),
+    ],
+    max_tokens=2000,
+    temperature=0.1,
+    input_selectors=[
+        {"kind": "source_code"},
+        {"kind": "devops_finding", "optional": True},
+        {"kind": "review_feedback", "optional": True},
+    ],
+    max_input_chars=16_000,
+    never_truncate=["devops_finding", "review_feedback"],
+    accept_any_file=True,
+)
+
+
 # Global registry of agent roles
 ROLES: dict[str, AgentRole] = {
     "product_manager": PRODUCT_MANAGER_ROLE,
@@ -449,5 +499,6 @@ ROLES: dict[str, AgentRole] = {
     "backend_engineer": BACKEND_ENGINEER_ROLE,
     "qa_engineer": QA_ENGINEER_ROLE,
     "frontend_engineer": FRONTEND_ENGINEER_ROLE,
+    "devops_engineer": DEVOPS_ENGINEER_ROLE,
     "senior_reviewer": SENIOR_REVIEWER_ROLE,
 }

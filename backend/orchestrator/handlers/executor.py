@@ -6,6 +6,7 @@ from app.models import Artifact, Node, NodeStatus
 from orchestrator.config import HandlerConfig
 from orchestrator.handlers import ArtifactSpec, HandlerResult
 from orchestrator.sandbox.bandit_runner import run_bandit_security_scan_in_docker_sandbox
+from orchestrator.sandbox.devops_runner import run_devops_checks_in_docker_sandbox
 from orchestrator.sandbox.docker_runner import run_code_in_docker_sandbox
 from orchestrator.sandbox.test_runner import run_contract_tests_in_docker_sandbox
 from orchestrator.sandbox.ts_build_runner import run_ts_build_in_docker_sandbox
@@ -18,7 +19,7 @@ async def handle_executor_node(
     inputs: dict[str, Artifact],
     config: HandlerConfig,
 ) -> HandlerResult:
-    """Execute code, contract tests, TS builds, or security scans in a Docker sandbox container and emit corresponding report artifacts."""
+    """Execute code, contract tests, TS builds, security scans, or DevOps checks in a Docker sandbox container and emit corresponding report artifacts."""
     # Phase 0 backward compatibility for legacy fake executor tests
     if "exit_code" in node.config or ("stdout" in node.config and "mock_report" not in node.config):
         exit_code = node.config.get("exit_code", 0)
@@ -39,6 +40,7 @@ async def handle_executor_node(
     source_files: dict[str, str] = {}
     test_files: dict[str, str] = {}
     frontend_files: dict[str, str] = {}
+    dockerfile_content: str = ""
     for art in inputs.values():
         if art.kind == "source_code":
             source_files[art.filename] = art.content
@@ -46,6 +48,46 @@ async def handle_executor_node(
             test_files[art.filename] = art.content
         elif art.kind == "frontend_code":
             frontend_files[art.filename] = art.content
+        elif art.kind == "dockerfile":
+            dockerfile_content = art.content
+
+    # Branch for DevOpsExecutor (hadolint Dockerfile lint + docker build)
+    if node.agent_role == "devops_executor" or node.name.startswith("DevOpsExecutor"):
+        if "mock_report" in node.config:
+            report = node.config["mock_report"]
+        elif not dockerfile_content:
+            report = {
+                "hadolint_ran": False,
+                "error_count": 0,
+                "warning_count": 0,
+                "hadolint_findings": [],
+                "build_attempted": False,
+                "build_success": False,
+                "build_logs_tail": "Missing dockerfile artifact.",
+                "elapsed_s": 0.0,
+            }
+        else:
+            report = run_devops_checks_in_docker_sandbox(dockerfile_content, source_files)
+
+        artifact_spec = ArtifactSpec(
+            kind="devops_report",
+            filename="devops_report.json",
+            content=json.dumps(report, indent=2),
+            content_type="application/json",
+        )
+
+        log_msg = (
+            f"DevOpsExecutor {node.name} completed checks: "
+            f"hadolint_ran={report.get('hadolint_ran')}, "
+            f"error_count={report.get('error_count')}, warning_count={report.get('warning_count')}, "
+            f"build_success={report.get('build_success')}"
+        )
+
+        return HandlerResult(
+            status=NodeStatus.completed,
+            artifacts=[artifact_spec],
+            logs=log_msg,
+        )
 
     # Branch for SecurityScanExecutor (Bandit AST security scan)
     if node.agent_role == "security_executor" or node.name.startswith("SecurityScanExecutor"):

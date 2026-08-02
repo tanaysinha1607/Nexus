@@ -38,6 +38,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
   const testReportArt = nodeArtifacts.find((a) => a.kind === "test_report");
   const buildReportArt = nodeArtifacts.find((a) => a.kind === "build_report");
   const securityReportArt = nodeArtifacts.find((a) => a.kind === "security_report");
+  const devopsReportArt = nodeArtifacts.find((a) => a.kind === "devops_report");
 
   // Verdict
   const verdictArt = nodeArtifacts.find((a) => a.kind === "verdict");
@@ -111,11 +112,12 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
         {/* 1. VERDICT ARTIFACT (If Validator) */}
         {verdictArt && renderVerdictSection(verdictArt)}
 
-        {/* 2. EXECUTION / TEST / BUILD / SECURITY REPORT ARTIFACTS */}
+        {/* 2. EXECUTION / TEST / BUILD / SECURITY / DEVOPS REPORT ARTIFACTS */}
         {execReportArt && renderExecutionReportSection(execReportArt)}
         {testReportArt && renderTestReportSection(testReportArt)}
         {buildReportArt && renderBuildReportSection(buildReportArt)}
         {securityReportArt && renderSecurityReportSection(securityReportArt)}
+        {devopsReportArt && renderDevOpsReportSection(devopsReportArt)}
 
         {/* 3. SOURCE CODE / FRONTEND CODE ARTIFACTS */}
         {sourceCodeArts.length > 0 && renderSourceCodeSection(sourceCodeArts)}
@@ -131,6 +133,7 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
               a.kind !== "test_report" &&
               a.kind !== "build_report" &&
               a.kind !== "security_report" &&
+              a.kind !== "devops_report" &&
               a.kind !== "verdict" &&
               a.kind !== "prompt"
           )
@@ -537,6 +540,106 @@ export const NodeInspectionPanel: React.FC<NodeInspectionPanelProps> = ({
             </div>
           </div>
         )}
+      </div>
+    );
+  }
+
+  function renderDevOpsReportSection(art: ArtifactData) {
+    let report: any = {};
+    try {
+      report = JSON.parse(art.content);
+    } catch {
+      report = {};
+    }
+
+    const hadolintRan = report.hadolint_ran;
+    const errorCount = report.error_count ?? 0;
+    const warningCount = report.warning_count ?? 0;
+    const buildSuccess = report.build_success;
+    const findings = report.hadolint_findings || [];
+    const buildLogsTail = report.build_logs_tail || "";
+
+    return (
+      <div className="bg-gray-900/80 border border-orange-800/60 rounded-xl p-5 space-y-4">
+        <h4 className="text-sm font-mono font-bold uppercase text-orange-400 tracking-wider flex items-center gap-2">
+          <span>🐳 DevOps Dockerfile & Build Report</span>
+          <span className="text-[10px] text-orange-500/80 font-normal">hadolint + docker build</span>
+        </h4>
+
+        <div className="grid grid-cols-4 gap-3">
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">hadolint Status</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                hadolintRan
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {hadolintRan ? "PASSED" : "FAILED"}
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">ERRORS</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                errorCount > 0
+                  ? "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+              }`}
+            >
+              {errorCount} ERROR
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">WARNINGS</span>
+            <span className="px-2.5 py-0.5 rounded text-xs font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              {warningCount} WARN
+            </span>
+          </div>
+
+          <div className="bg-gray-950 p-3 rounded-lg border border-gray-800 flex items-center justify-between">
+            <span className="text-xs font-mono text-gray-400">docker build</span>
+            <span
+              className={`px-2.5 py-0.5 rounded text-xs font-mono font-bold ${
+                buildSuccess
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                  : "bg-rose-500/20 text-rose-400 border border-rose-500/40"
+              }`}
+            >
+              {buildSuccess ? "SUCCESS" : "FAILED"}
+            </span>
+          </div>
+        </div>
+
+        {findings.length > 0 && (
+          <div className="space-y-2">
+            <div className="text-xs font-mono text-rose-400 font-bold uppercase flex items-center gap-1.5">
+              <span>⚠️ hadolint ERROR Findings ({findings.length})</span>
+            </div>
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {findings.map((f: any, idx: number) => (
+                <div key={idx} className="bg-gray-950 p-3 rounded-lg border border-rose-900/60 font-mono text-xs text-rose-200">
+                  <div className="flex items-center justify-between font-bold text-rose-300">
+                    <span>[{f.code}] {f.message}</span>
+                    <span>Line {f.line}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <div className="text-xs font-mono text-cyan-300 font-bold uppercase">
+            <span>🐳 Docker Build Log Output</span>
+          </div>
+          <div className="bg-gray-950 p-4 rounded-xl border border-gray-800 font-mono text-xs text-gray-300 max-h-60 overflow-y-auto whitespace-pre-wrap">
+            {buildLogsTail}
+          </div>
+        </div>
       </div>
     );
   }
