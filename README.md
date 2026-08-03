@@ -1,6 +1,22 @@
 # Nexus
 
-An orchestration engine for autonomous software engineering. AI agents build real software from a plain-English prompt — but nothing passes on an LLM's say-so. **Agents propose; real execution decides.**
+An orchestration engine for autonomous software engineering. AI agents build real software from any plain-English prompt — but nothing passes on an LLM's say-so. **Agents propose; real execution decides.**
+
+---
+
+## Prompt-Generality: Any Python Web Application
+
+Nexus builds **ANY Python web application** directly from a plain-English prompt. Agent role definitions contain zero hardcoded domain endpoints or crypto/portfolio assumptions. All agents derive specifications, schemas, endpoints, tests, and code dynamically from the machine-readable API contract (`api_contract.json`).
+
+Crucially, **the verification gates adapt to the app — e.g. QA tests a 302 redirect for a URL shortener, JSON responses for an API, or header checks — not just the generated code.**
+
+### Live Multi-Domain Proof (Same Engine, Two Real Apps)
+Nexus has proven prompt generality by autonomously building, verifying, and shipping two completely different software applications to GitHub:
+
+- **Cryptocurrency Paper Trading Platform**: [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) — JWT authentication, portfolio analytics, and live market simulation.
+- **URL Shortener API with Click Analytics**: [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
+
+> **Honest Boundary**: Prompt generality currently covers Python web services (FastAPI). Multi-language generality (Phase 6b) and non-web application shapes are on the roadmap.
 
 ---
 
@@ -124,6 +140,7 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 - **Phase 3** 🟡 — Security agent ✅ (`bandit` AST scanner, zero-HIGH gate) | Performance ⬜ deferred by design.
 - **Phase 4** 🟡 — DevOps agent ✅ (`hadolint` AST linter + `docker build` compilation) | Documentation ⬜ deferred by design.
 - **Phase 5** 🟡 — GitHub PR integration ✅ (ships verified code as a real PR) | Multi-project memory ⬜ deferred (stretch).
+- **Phase 6a** ✅ — Prompt-Generality (Level 1): builds ANY Python web app dynamically from prompt; conditional auth (JWT vs API-Key); non-JSON/redirect QA assertions; live proof shipped as PR #3.
 
 ---
 
@@ -131,8 +148,8 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 
 Nexus ships its verified output as a real pull request. Once every gate in a run produces a passing verdict and the Senior Reviewer approves the code, Nexus automatically commits the attempt-scoped verified files (`main.py`, `requirements.txt`, `Dockerfile`, etc.) to a dedicated branch and opens a GitHub Pull Request with zero LLM tokens.
 
-- **Real Live Demo Pull Request**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2)
-- **Verified Code & Telemetry**: Contains real generated FastAPI backend code for a cryptocurrency paper trading platform, complete with execution gate checklist telemetry (`Runtime`, `Security: bandit 0 HIGH findings`, `Senior Reviewer Approval`).
+- **Real Demo Pull Request #2 (Crypto Platform)**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2)
+- **Real Demo Pull Request #3 (URL Shortener API)**: [Nexus PR #3 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/3)
 
 ---
 
@@ -171,7 +188,7 @@ docker compose up --build
 ```bash
 docker compose exec backend pytest tests/ -m "not live"
 ```
-*Result*: **99 passing unit tests** (single invocation, isolated, no network).
+*Result*: **103 passing unit tests** (single invocation, isolated, no network).
 
 ---
 
