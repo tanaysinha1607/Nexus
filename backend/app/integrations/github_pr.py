@@ -73,10 +73,15 @@ async def open_github_pr(db: AsyncSession, run_id: uuid.UUID) -> str:
         raise ValueError(f"Failed to parse verdict JSON: {e}")
 
     passed = v_data.get("passed", False)
-    reviewer_verdict = v_data.get("reviewer_verdict")
 
-    # Strict Gate Check: verdict.passed must be True AND reviewer verdict must be approved (if specified)
-    if not passed or (reviewer_verdict and reviewer_verdict != "approved"):
+    # Check Reviewer approval from review artifacts if present
+    review_artifacts = [a for a in artifacts if a.kind in ("review", "review_summary")]
+    reviewer_approved = True
+    if review_artifacts:
+        final_review = max(review_artifacts, key=lambda a: a.attempt)
+        reviewer_approved = "REVIEW_VERDICT: approved" in final_review.content or "approved" in final_review.content.lower()
+
+    if not passed or not reviewer_approved:
         raise ValueError("Cannot open PR for a run whose final verification verdict failed or was not approved.")
 
     final_attempt = final_verdict_art.attempt
