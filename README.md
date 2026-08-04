@@ -13,8 +13,8 @@ Crucially, **the verification gates adapt to the app — e.g. QA tests a 302 red
 ### Live Multi-Domain Proof (Same Engine, Two Real Apps)
 Nexus has proven prompt generality by autonomously building, verifying, and shipping two completely different software applications to GitHub:
 
-- **Cryptocurrency Paper Trading Platform**: [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) — JWT authentication, portfolio analytics, and live market simulation.
-- **URL Shortener API with Click Analytics**: [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
+- **Cryptocurrency Paper Trading Platform**: [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged) — JWT authentication, portfolio analytics, and live market simulation.
+- **URL Shortener API with Click Analytics**: [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) (open) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
 
 > **Honest Boundary**: Prompt generality currently covers Python web services (FastAPI). Multi-language generality (Phase 6b) and non-web application shapes are on the roadmap.
 
@@ -148,8 +148,8 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 
 Nexus ships its verified output as a real pull request. Once every gate in a run produces a passing verdict and the Senior Reviewer approves the code, Nexus automatically commits the attempt-scoped verified files (`main.py`, `requirements.txt`, `Dockerfile`, etc.) to a dedicated branch and opens a GitHub Pull Request with zero LLM tokens.
 
-- **Real Demo Pull Request #2 (Crypto Platform)**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2)
-- **Real Demo Pull Request #3 (URL Shortener API)**: [Nexus PR #3 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/3)
+- **Real Demo Pull Request #2 (Crypto Platform)**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged)
+- **Real Demo Pull Request #3 (URL Shortener API)**: [Nexus PR #3 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/3) (open)
 
 ---
 
