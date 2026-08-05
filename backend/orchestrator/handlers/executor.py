@@ -9,6 +9,7 @@ from orchestrator.sandbox.bandit_runner import run_bandit_security_scan_in_docke
 from orchestrator.sandbox.devops_runner import run_devops_checks_in_docker_sandbox
 from orchestrator.sandbox.docker_runner import run_code_in_docker_sandbox
 from orchestrator.sandbox.npm_audit_runner import run_npm_audit_scan_in_docker_sandbox
+from orchestrator.sandbox.semgrep_runner import run_semgrep_security_scan_in_docker_sandbox
 from orchestrator.sandbox.test_runner import run_contract_tests_in_docker_sandbox
 from orchestrator.sandbox.ts_build_runner import run_ts_build_in_docker_sandbox
 
@@ -97,7 +98,7 @@ async def handle_executor_node(
             logs=log_msg,
         )
 
-    # Branch for SecurityScanExecutor (Bandit for Python, npm audit for Node)
+    # Branch for SecurityScanExecutor (Bandit for Python, Semgrep for Node)
     if node.agent_role == "security_executor" or node.name.startswith("SecurityScanExecutor"):
         if "mock_report" in node.config:
             report = node.config["mock_report"]
@@ -112,8 +113,8 @@ async def handle_executor_node(
                 "elapsed_s": 0.0,
             }
         else:
-            if manifest.get("language") == "node" or "package.json" in source_files:
-                report = run_npm_audit_scan_in_docker_sandbox(source_files)
+            if manifest.get("language") == "node" or "package.json" in source_files or any(f.endswith((".js", ".ts")) for f in source_files.keys()):
+                report = run_semgrep_security_scan_in_docker_sandbox(source_files)
             else:
                 report = run_bandit_security_scan_in_docker_sandbox(source_files)
 

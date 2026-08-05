@@ -107,7 +107,13 @@ async def handle_validator_node(
             failures.append("security_scan_failed_to_complete")
         if high_count > 0 or critical_count > 0:
             for f in high_findings:
-                if scanner == "npm_audit":
+                if scanner == "semgrep":
+                    check_id = f.get("check_id", "UNKNOWN")
+                    msg = f.get("message", "")
+                    path = f.get("path", "")
+                    line = f.get("line", 0)
+                    failures.append(f"HIGH_CODE_VULNERABILITY [{check_id}] {msg} at {path}:{line}")
+                elif scanner == "npm_audit":
                     pkg = f.get("package", f.get("name", "unknown"))
                     sev = f.get("severity", "high").upper()
                     title = f.get("title", "Vulnerable dependency")
