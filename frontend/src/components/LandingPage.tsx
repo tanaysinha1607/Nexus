@@ -7,21 +7,38 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
     <div className="min-h-screen bg-gray-950 text-gray-100 p-8 font-sans flex flex-col justify-between selection:bg-purple-500 selection:text-white">
       <div className="max-w-6xl mx-auto w-full space-y-10 py-4">
         
-        {/* Header / Brand */}
+        {/* Header Bar */}
         <div className="flex items-center justify-between border-b border-gray-800/80 pb-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 via-cyan-500 to-emerald-500 p-0.5 shadow-lg shadow-purple-950/50 flex items-center justify-center">
-              <div className="w-full h-full bg-gray-950 rounded-[10px] flex items-center justify-center font-black text-cyan-400 text-lg">
-                N
-              </div>
-            </div>
-            <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-purple-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
-              Nexus
+          {/* Top-Left: GitHub Icon & Link */}
+          <a
+            href="https://github.com/tanaysinha1607/Nexus"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2.5 text-gray-400 hover:text-white transition group"
+            title="View Nexus Repository on GitHub"
+          >
+            <svg className="w-6 h-6 fill-current transition-transform group-hover:scale-110" viewBox="0 0 24 24">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            <span className="text-xs font-mono font-semibold tracking-wider text-gray-300 group-hover:text-cyan-400 transition">
+              GitHub Repo
             </span>
+          </a>
+
+          {/* Top-Right: Badge & Contact Owner Button */}
+          <div className="flex items-center gap-3">
+            <span className="hidden sm:inline-block px-3 py-1 rounded-full bg-purple-950/80 text-purple-300 font-mono text-xs font-semibold border border-purple-800/60 shadow-inner">
+              Autonomous Software Engine
+            </span>
+            <a
+              href="mailto:tanaysinha1607@gmail.com?subject=Nexus%20Inquiry"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-1.5 rounded-xl bg-gray-900 hover:bg-gray-800 border border-gray-700 hover:border-cyan-500 text-xs font-mono text-cyan-300 hover:text-cyan-200 font-bold transition flex items-center gap-2 shadow-md cursor-pointer"
+            >
+              <span>Contact Owner ✉️</span>
+            </a>
           </div>
-          <span className="px-3 py-1 rounded-full bg-purple-950/80 text-purple-300 font-mono text-xs font-semibold border border-purple-800/60 shadow-inner">
-            Autonomous Software Engine
-          </span>
         </div>
 
         {/* Hero Section */}
@@ -31,13 +48,19 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
             Deterministic Execution Gates • Zero LLM Self-Rating
           </div>
 
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight leading-tight">
+          {/* Centered Hero Title with Subtle Soft Shadow */}
+          <h1 className="text-7xl md:text-9xl font-black tracking-tight leading-none bg-gradient-to-r from-purple-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent drop-shadow-[0_4px_12px_rgba(168,85,247,0.25)] select-none">
+            Nexus
+          </h1>
+
+          {/* Demoted Subheading Tagline */}
+          <h2 className="text-xl md:text-2xl font-bold tracking-tight text-gray-200 max-w-3xl mx-auto leading-snug">
             Autonomous software engineering, verified by{" "}
             <span className="bg-gradient-to-r from-purple-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent">
               real execution
             </span>{" "}
             — not an LLM's opinion.
-          </h1>
+          </h2>
 
           <p className="text-gray-300 text-base md:text-lg max-w-2xl mx-auto leading-relaxed">
             Nexus accepts a plain-English prompt and orchestrates specialized AI agents to generate, build, and verify real web applications in Python and Node.js. Nothing passes on an LLM's say-so — every step is verified by real compilers, static scanners, and sandboxed test suites.
@@ -82,7 +105,7 @@ export function LandingPage({ onLaunch }: LandingPageProps) {
             </div>
             <h3 className="font-bold text-gray-100 text-base">Six Objective Verification Gates</h3>
             <p className="text-gray-400 text-xs leading-relaxed">
-              Runtime boots, black-box HTTP tests (<code className="text-cyan-300">pytest</code>/<code className="text-cyan-300">npm test</code>), <code className="text-cyan-300">tsc</code> compilation, <code className="text-cyan-300">bandit</code>/<code className="text-cyan-300">semgrep</code> AST security scans, <code className="text-cyan-300">hadolint</code>, and code review.
+              Runtime boots, black-box HTTP tests (<code className="font-mono text-gray-300">pytest</code>/<code className="font-mono text-gray-300">npm test</code>), <code className="font-mono text-gray-300">tsc</code> compilation, <code className="font-mono text-gray-300">bandit</code>/<code className="font-mono text-gray-300">semgrep</code> AST security scans, <code className="font-mono text-gray-300">hadolint</code>, and code review.
             </p>
           </div>
 
