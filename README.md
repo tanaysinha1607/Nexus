@@ -18,8 +18,8 @@ Target stack decisions are declared as data artifacts, not hardcoded into orches
 Nexus has proven generality across three distinct application domains and two target languages using the exact same engine:
 
 - **Cryptocurrency Paper Trading Platform** (Python / FastAPI): [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged) — JWT authentication, portfolio analytics, and live market simulation.
-- **URL Shortener API with Click Analytics** (Python / FastAPI): [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) (open) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
-- **Notes REST API** (Node.js / Express): Live verified run `df583f7a-8ab4-4f40-84a1-77fa68b75e11` — `package.json` (`express@^4.19.2`), `index.js`, scanned with `semgrep` (0 ERROR findings), and approved by Senior Reviewer.
+- **URL Shortener API with Click Analytics** (Python / FastAPI): [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) (merged) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
+- **Notes REST API** (Node.js / Express): Built & verified live (run `df583f7a-8ab4-4f40-84a1-77fa68b75e11`) — `package.json` (`express@^4.19.2`), `index.js`, scanned with `semgrep` (0 ERROR findings), and approved by Senior Reviewer.
 
 > **Honest Boundary**: Generality covers web applications in Python (FastAPI) and Node.js (Express). Additional languages can be added additively via `build_manifest.json`. Non-web shapes (CLIs, desktop apps, standalone libraries) are explicitly out of scope.
 
@@ -157,7 +157,7 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 Nexus ships its verified output as a real pull request. Once every gate in a run produces a passing verdict and the Senior Reviewer approves the code, Nexus automatically commits the attempt-scoped verified files (`main.py`/`index.js`, `requirements.txt`/`package.json`, `Dockerfile`, etc.) to a dedicated branch and opens a GitHub Pull Request with zero LLM tokens.
 
 - **Real Demo Pull Request #2 (Crypto Platform)**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged)
-- **Real Demo Pull Request #3 (URL Shortener API)**: [Nexus PR #3 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/3) (open)
+- **Real Demo Pull Request #3 (URL Shortener API)**: [Nexus PR #3 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/3) (merged)
 
 ---
 
