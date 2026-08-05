@@ -45,6 +45,7 @@ export default function App() {
         if (res.ok) {
           const data = await res.json();
           setProjectId(data.id);
+          console.log("Initialized project:", data.id);
         }
       } catch (err) {
         console.error("Failed to initialize project", err);
@@ -52,6 +53,12 @@ export default function App() {
     }
     initProject();
   }, []);
+
+  useEffect(() => {
+    if (projectId) {
+      console.log("Current active project:", projectId);
+    }
+  }, [projectId]);
 
   // Snapshot fetching logic
   const fetchSnapshot = async (id: string) => {
@@ -214,31 +221,18 @@ export default function App() {
             <h1 className="text-3xl font-black bg-gradient-to-r from-purple-400 via-cyan-400 to-emerald-400 bg-clip-text text-transparent tracking-tight">
               Nexus Orchestration Engine
             </h1>
-            <p className="text-gray-400 text-sm mt-1 flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded bg-purple-950 text-purple-300 font-mono text-xs font-bold border border-purple-800/60">
-                Phase 1.5
-              </span>
-              <span>Real Single-Project Inspection &amp; Self-Healing Pipeline</span>
+            <p className="text-gray-400 text-sm mt-1">
+              Autonomous Software Engineering Engine
             </p>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-gray-500">Graph: pm_arch_backend_exec</span>
           </div>
         </div>
 
         {/* Project Form & Run Trigger */}
         <div className="bg-gray-900/80 border border-gray-800 rounded-2xl p-6 space-y-4 shadow-xl">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-gray-200 flex items-center gap-2">
-              <span>Project Specification &amp; Run Trigger</span>
-              <span className="text-xs font-mono font-normal text-cyan-400">Canonical Prompt</span>
+            <h2 className="text-base font-bold text-gray-200">
+              Project Specification &amp; Run Trigger
             </h2>
-            {projectId && (
-              <span className="text-xs font-mono text-gray-500">
-                Project ID: <strong className="text-cyan-300">{projectId.slice(0, 8)}...</strong>
-              </span>
-            )}
           </div>
 
           <div className="space-y-3">
@@ -247,7 +241,7 @@ export default function App() {
               onChange={(e) => setPrompt(e.target.value)}
               rows={3}
               className="w-full bg-gray-950 border border-gray-800 rounded-xl p-3 text-xs font-mono text-gray-200 focus:outline-none focus:border-cyan-500 transition leading-relaxed"
-              placeholder="Enter project prompt..."
+              placeholder="Describe the web app to build..."
             />
 
             <div className="flex items-center justify-between gap-4">
@@ -263,7 +257,7 @@ export default function App() {
                 {loading ? (
                   <span>🚀 Launching Execution Run...</span>
                 ) : (
-                  <span>🚀 Trigger pm_arch_backend_exec Run</span>
+                  <span>Build ▶</span>
                 )}
               </button>
             </div>
