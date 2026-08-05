@@ -16,7 +16,7 @@ Nexus has proven prompt generality by autonomously building, verifying, and ship
 - **Cryptocurrency Paper Trading Platform**: [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged) — JWT authentication, portfolio analytics, and live market simulation.
 - **URL Shortener API with Click Analytics**: [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) (open) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
 
-> **Honest Boundary**: Prompt generality currently covers Python web services (FastAPI). Multi-language generality (Phase 6b) and non-web application shapes are on the roadmap.
+> **Multi-Language Architecture**: Generality covers Python (FastAPI) and Node.js (Express) via manifest-driven dispatch (`build_manifest.json`). Both languages share symmetric, code-level static AST security gates (`bandit` for Python, `semgrep` for Node.js).
 
 ---
 
@@ -26,10 +26,10 @@ Nexus checks generated code with six independent gates across the software devel
 
 | Gate | Question | The judge (not an LLM) | Phase |
 |------|----------|------------------------|-------|
-| **Runtime** | Does it run? | Docker container + `/health` probe | Phase 1 |
-| **Behavior** | Does it behave? | Real `pytest` over HTTP against live service | Phase 2a |
+| **Runtime** | Does it run? | Docker container + `/health` probe (FastAPI / Express) | Phase 1 |
+| **Behavior** | Does it behave? | Black-box HTTP tests (`pytest` for Python, `node --test` / `npm test` for Node) | Phase 2a |
 | **Compilation** | Does the client compile? | `tsc --noEmit --strict` | Phase 2b |
-| **Security** | Is it secure? | `bandit` (SAST static AST analyzer) | Phase 3 |
+| **Security** | Is it secure? | `bandit` for Python, `semgrep` for Node.js (static AST code analysis) | Phase 3 / 6b |
 | **Build** | Does it build into a real image? | `docker build` + `hadolint` (AST Dockerfile linter) | Phase 4 |
 | **Quality** | Good enough to ship? | Senior Reviewer Agent (subjective code review) | Phase 1.4b |
 
