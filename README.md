@@ -1,22 +1,27 @@
 # Nexus
 
-An orchestration engine for autonomous software engineering. AI agents build real software from any plain-English prompt — but nothing passes on an LLM's say-so. **Agents propose; real execution decides.**
+An orchestration engine for autonomous software engineering. AI agents build real software for any web app, in Python OR Node.js, from a plain-English prompt — but nothing passes on an LLM's say-so. **Agents propose; real execution decides.**
 
 ---
 
-## Prompt-Generality: Any Python Web Application
+## Prompt & Language Generality
 
-Nexus builds **ANY Python web application** directly from a plain-English prompt. Agent role definitions contain zero hardcoded domain endpoints or crypto/portfolio assumptions. All agents derive specifications, schemas, endpoints, tests, and code dynamically from the machine-readable API contract (`api_contract.json`).
+Nexus builds **any web application in Python OR Node.js** directly from a plain-English prompt. Agent role definitions contain zero hardcoded domain endpoints, crypto assumptions, or fixed stack rules.
 
-Crucially, **the verification gates adapt to the app — e.g. QA tests a 302 redirect for a URL shortener, JSON responses for an API, or header checks — not just the generated code.**
+### 1. Language-as-an-Artifact Architecture
+Target stack decisions are declared as data artifacts, not hardcoded into orchestrator logic:
+- The Solution Architect agent emits `build_manifest.json` (`{"language": "python" | "node", "framework": "fastapi" | "express", "entrypoint": "main.py" | "index.js", "test_command": "pytest" | "npm test", "build_command": "pip install -r requirements.txt" | "npm install"}`).
+- Executors read `build_manifest.json` from the run context and dispatch the appropriate toolchain dynamically.
+- Adding target languages is purely additive: existing Python pipeline paths remain byte-for-byte untouched.
 
-### Live Multi-Domain Proof (Same Engine, Two Real Apps)
-Nexus has proven prompt generality by autonomously building, verifying, and shipping two completely different software applications to GitHub:
+### 2. Multi-Domain & Multi-Language Proof Set
+Nexus has proven generality across three distinct application domains and two target languages using the exact same engine:
 
-- **Cryptocurrency Paper Trading Platform**: [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged) — JWT authentication, portfolio analytics, and live market simulation.
-- **URL Shortener API with Click Analytics**: [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) (open) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
+- **Cryptocurrency Paper Trading Platform** (Python / FastAPI): [Nexus Output PR #2](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged) — JWT authentication, portfolio analytics, and live market simulation.
+- **URL Shortener API with Click Analytics** (Python / FastAPI): [Nexus Output PR #3](https://github.com/tanaysinha1607/nexus-output/pull/3) (open) — API-Key header authentication, HTTP 302 redirect testing (`httpx` with `follow_redirects=False` asserting `Location` header), and click count tracking.
+- **Notes REST API** (Node.js / Express): Live verified run `df583f7a-8ab4-4f40-84a1-77fa68b75e11` — `package.json` (`express@^4.19.2`), `index.js`, scanned with `semgrep` (0 ERROR findings), and approved by Senior Reviewer.
 
-> **Multi-Language Architecture**: Generality covers Python (FastAPI) and Node.js (Express) via manifest-driven dispatch (`build_manifest.json`). Both languages share symmetric, code-level static AST security gates (`bandit` for Python, `semgrep` for Node.js).
+> **Honest Boundary**: Generality covers web applications in Python (FastAPI) and Node.js (Express). Additional languages can be added additively via `build_manifest.json`. Non-web shapes (CLIs, desktop apps, standalone libraries) are explicitly out of scope.
 
 ---
 
@@ -26,14 +31,16 @@ Nexus checks generated code with six independent gates across the software devel
 
 | Gate | Question | The judge (not an LLM) | Phase |
 |------|----------|------------------------|-------|
-| **Runtime** | Does it run? | Docker container + `/health` probe (FastAPI / Express) | Phase 1 |
-| **Behavior** | Does it behave? | Black-box HTTP tests (`pytest` for Python, `node --test` / `npm test` for Node) | Phase 2a |
-| **Compilation** | Does the client compile? | `tsc --noEmit --strict` | Phase 2b |
-| **Security** | Is it secure? | `bandit` for Python, `semgrep` for Node.js (static AST code analysis) | Phase 3 / 6b |
+| **Runtime** | Does it run? | Docker container + `/health` probe (`uvicorn` for Python, `node` for Node.js) | Phase 1, 6b |
+| **Behavior** | Does it behave? | Black-box HTTP tests (`pytest` for Python, `node --test` / `npm test` for Node.js) | Phase 2a, 6b |
+| **Compilation** | Does the client compile? | `tsc --noEmit --strict` (typed API client) | Phase 2b |
+| **Security** | Is the code secure? | `bandit` (Python) / `semgrep` (Node.js) — real static AST code analysis | Phase 3, 6b |
 | **Build** | Does it build into a real image? | `docker build` + `hadolint` (AST Dockerfile linter) | Phase 4 |
 | **Quality** | Good enough to ship? | Senior Reviewer Agent (subjective code review) | Phase 1.4b |
 
-*Five gates are objective tools; one is a subjective agent; none is an LLM deciding whether its own output is correct.*
+*Five gates are objective execution tools; one is a subjective agent; none is an LLM deciding whether its own output is correct.*
+
+> **Symmetric Code Security**: Node.js security uses `semgrep` (`--config=p/javascript --config=p/typescript`), providing real static AST code scanning symmetric with Python's `bandit`. Teeth-proven: `semgrep` identified and rejected dangerous `eval(req.body.x)` code with rule `javascript.lang.security.detect-eval-with-expression` at `ERROR` level, failing the `SecurityValidator` gate.
 
 ---
 
@@ -43,8 +50,8 @@ Nexus enforces structural separation between proposal, execution, and validation
 
 | Node Type | What It Does | LLM Involved? | Token Cost |
 |-----------|--------------|---------------|------------|
-| **Agent** | Calls an LLM to generate proposals (PRD, Architecture, OpenAPI Contract, FastAPI Backend Code, Typed TS Client, Dockerfile, Code Review) — subjective output | Yes | Input/Output LLM tokens |
-| **Executor** | Runs a real tool inside an isolated Docker sandbox (boots container, runs `pytest`, compiles `tsc`, runs `bandit`, lints `hadolint`, executes `docker build`) and captures real output | **No** | **0 LLM tokens** |
+| **Agent** | Calls an LLM to generate proposals (PRD, Architecture, Manifest, OpenAPI Contract, Backend Code, Typed TS Client, Dockerfile, Code Review) — subjective output | Yes | Input/Output LLM tokens |
+| **Executor** | Runs a real tool inside an isolated Docker sandbox (boots container, runs `pytest`/`npm test`, compiles `tsc`, runs `bandit`/`semgrep`, lints `hadolint`, executes `docker build`) and captures real output | **No** | **0 LLM tokens** |
 | **Validator** | Applies a deterministic Python rule to an executor's report $\rightarrow$ `pass`/`fail` verdict | **No** | **0 LLM tokens** |
 
 > **Structural Guarantee**: An agent's opinion that code "looks good" can **never** override a validator's objective failure. A validator node's failure blocks downstream review and triggers an automated rework loop.
@@ -71,7 +78,7 @@ Nexus avoids arbitrary agent proliferation: only specialized agents that have a 
 
 ## Self-Healing Rework Loop
 
-When any gate rejects, the orchestrator constructs an attempt-scoped rework sub-chain ($A_{N+1}$). The **exact empirical failure** (a container traceback, pytest failures, type errors, AST security findings, or hadolint error logs) is formatted as a feedback artifact and passed back to the producing agent. Attempt counters are capped at 5 attempts max.
+When any gate rejects, the orchestrator constructs an attempt-scoped rework sub-chain ($A_{N+1}$). The **exact empirical failure** (a container traceback, pytest/npm test failures, type errors, AST security findings, or hadolint error logs) is formatted as a feedback artifact and passed back to the producing agent. Attempt counters are capped at 5 attempts max.
 
 ### Verbatim Rework Trajectory Examples (Real Run Executions)
 
@@ -135,18 +142,19 @@ Nexus intentionally defers two capabilities because forcing them into a validato
 
 - **Phase 0** ✅ — Task-graph schema, scheduler, artifact readiness, Redis event bus, live WebSocket UI.
 - **Phase 1** ✅ — Core 7-node MVP: PM, Architect, ApiDesigner, Backend, BackendExecutor, BackendValidator, SeniorReviewer.
-- **Phase 2a** ✅ — QA Engineer agent + black-box integration `pytest` execution over HTTP.
+- **Phase 2a** ✅ — QA Engineer agent + black-box integration `pytest` / `npm test` execution over HTTP.
 - **Phase 2b** ✅ — Frontend Engineer agent + typed TypeScript API client `tsc --noEmit --strict` compilation.
-- **Phase 3** 🟡 — Security agent ✅ (`bandit` AST scanner, zero-HIGH gate) | Performance ⬜ deferred by design.
+- **Phase 3** 🟡 — Security agent ✅ (`bandit` / `semgrep` AST scanners, zero-HIGH gate) | Performance ⬜ deferred by design.
 - **Phase 4** 🟡 — DevOps agent ✅ (`hadolint` AST linter + `docker build` compilation) | Documentation ⬜ deferred by design.
 - **Phase 5** 🟡 — GitHub PR integration ✅ (ships verified code as a real PR) | Multi-project memory ⬜ deferred (stretch).
-- **Phase 6a** ✅ — Prompt-Generality (Level 1): builds ANY Python web app dynamically from prompt; conditional auth (JWT vs API-Key); non-JSON/redirect QA assertions; live proof shipped as PR #3.
+- **Phase 6a** ✅ — Prompt-Generality (Level 1): builds ANY web app dynamically from prompt; conditional auth (JWT vs API-Key); non-JSON/redirect QA assertions; live proof shipped as PR #3.
+- **Phase 6b** ✅ — Language-Generality (Level 2): builds Python/FastAPI AND Node.js/Express via `build_manifest.json`; symmetric static AST code security (`bandit` for Python, `semgrep` for Node.js); live proof with Express Notes API.
 
 ---
 
 ## Autonomous Shipping: GitHub PR Integration
 
-Nexus ships its verified output as a real pull request. Once every gate in a run produces a passing verdict and the Senior Reviewer approves the code, Nexus automatically commits the attempt-scoped verified files (`main.py`, `requirements.txt`, `Dockerfile`, etc.) to a dedicated branch and opens a GitHub Pull Request with zero LLM tokens.
+Nexus ships its verified output as a real pull request. Once every gate in a run produces a passing verdict and the Senior Reviewer approves the code, Nexus automatically commits the attempt-scoped verified files (`main.py`/`index.js`, `requirements.txt`/`package.json`, `Dockerfile`, etc.) to a dedicated branch and opens a GitHub Pull Request with zero LLM tokens.
 
 - **Real Demo Pull Request #2 (Crypto Platform)**: [Nexus PR #2 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/2) (merged)
 - **Real Demo Pull Request #3 (URL Shortener API)**: [Nexus PR #3 on GitHub](https://github.com/tanaysinha1607/nexus-output/pull/3) (open)
@@ -188,7 +196,7 @@ docker compose up --build
 ```bash
 docker compose exec backend pytest tests/ -m "not live"
 ```
-*Result*: **103 passing unit tests** (single invocation, isolated, no network).
+*Result*: **110 passing unit tests** (single invocation, isolated, no network).
 
 ---
 
