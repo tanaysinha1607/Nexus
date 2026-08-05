@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DagCanvas } from "./components/DagCanvas";
+import { LandingPage } from "./components/LandingPage";
 import { LiveActivityFeed } from "./components/LiveActivityFeed";
 import { NodeInspectionPanel } from "./components/NodeInspectionPanel";
 import type { ArtifactData, EdgeData, NexusEvent, NodeData, RunData } from "./types";
@@ -8,6 +9,7 @@ const CANONICAL_PROMPT =
   "Build a cryptocurrency paper trading platform with authentication, a dashboard, charts, portfolio management, and an admin panel.";
 
 export default function App() {
+  const [hasEntered, setHasEntered] = useState<boolean>(false);
   const [projectId, setProjectId] = useState<string | null>(null);
   const [prompt, setPrompt] = useState<string>(CANONICAL_PROMPT);
   const [runId, setRunId] = useState<string | null>(null);
@@ -30,6 +32,7 @@ export default function App() {
     const paramRunId = searchParams.get("runId");
     if (paramRunId) {
       setRunId(paramRunId);
+      setHasEntered(true);
     }
 
     async function initProject() {
@@ -210,6 +213,10 @@ export default function App() {
     } else {
       verdictResult = "PASS";
     }
+  }
+
+  if (!hasEntered) {
+    return <LandingPage onLaunch={() => setHasEntered(true)} />;
   }
 
   return (
