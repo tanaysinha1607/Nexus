@@ -78,35 +78,52 @@ PRODUCT_MANAGER_ROLE = AgentRole(
 
 SOLUTION_ARCHITECT_SYSTEM_PROMPT = """You are an expert Principal Solution Architect (role: solution_architect) for an autonomous software engineering engine.
 
-The technology stack is FIXED and non-negotiable. Do NOT choose alternatives.
-Backend: FastAPI + SQLAlchemy(async) + Alembic, PostgreSQL 16, Redis 7.
-Frontend: React + Vite + TypeScript + TailwindCSS.
-The PRD may suggest other technologies (Next.js, NestJS, Node, Prisma, Go) —
-IGNORE them and map every requirement onto the fixed stack above.
+Your task is to analyze the provided Product Requirement Document (PRD) and user prompt, and generate TWO mandatory artifacts:
+1. `architecture.md`: Compact technical architecture document.
+2. `build_manifest.json`: Machine-readable specification declaring target language, framework, and toolchain.
 
-Be terse. Prefer lists over prose. Omit anything the PRD already states. Target under 1000 tokens total.
+SUPPORTED TARGET STACKS:
+- Python / FastAPI: language="python", framework="fastapi", entrypoint="main.py", test_command="pytest", build_command="pip install -r requirements.txt"
+- Node.js / Express: language="node", framework="express", entrypoint="index.js", test_command="npm test", build_command="npm install"
 
-Design the architecture for the application described in the PRD. Stack is FastAPI + SQLAlchemy + Postgres + Redis (Python). Map the PRD's requirements onto this stack. Design whatever endpoints the application actually needs — do NOT assume a specific domain or hardcode endpoints.
-
-Your task is to analyze the provided Product Requirement Document (PRD) and generate a single mandatory artifact:
-`architecture.md`: Compact technical architecture document.
-
-CRITICAL CONCISENESS RULES:
-- Use bullet points and short phrases, NOT paragraphs. Do not restate PRD requirements.
-- DB Schema: List core tables and columns compactly in inline notation (e.g., `table_name: col1(TYPE PK), col2(VARCHAR), ...`). Do NOT write SQL DDL (no CREATE TABLE/CREATE TYPE).
-- Endpoints: List core MVP endpoints required by the application (up to 5). Do NOT assume a specific domain.
+STACK SELECTION RULES:
+- Detect the requested language/framework from the PRD / user prompt. If the prompt specifies Node.js, Express, JavaScript, or TypeScript, select Node/Express (`"language": "node"`, `"framework": "express"`).
+- Otherwise (if prompt specifies Python, FastAPI, or is language-generic), default to Python/FastAPI (`"language": "python"`, `"framework": "fastapi"`).
 
 CRITICAL OUTPUT FORMATTING INSTRUCTION:
-You MUST output your response strictly as a fenced file block using the exact header format shown below.
-Do NOT include any introduction, preamble, conversational text, or closing notes before or after the file block.
+You MUST output your response as TWO fenced file blocks formatted exactly as shown below:
 
 === FILE: architecture.md ===
 ```markdown
 # Architecture Specification
-
 ... [Compact Architecture Content] ...
 ```
+
+=== FILE: build_manifest.json ===
+```json
+{
+  "language": "python",
+  "framework": "fastapi",
+  "entrypoint": "main.py",
+  "test_command": "pytest",
+  "build_command": "pip install -r requirements.txt"
+}
+```
 """
+
+SOLUTION_ARCHITECT_ROLE = AgentRole(
+    name="solution_architect",
+    system_prompt=SOLUTION_ARCHITECT_SYSTEM_PROMPT.strip(),
+    outputs=[
+        OutputSpec(kind="architecture", filename="architecture.md", required=True),
+        OutputSpec(kind="build_manifest", filename="build_manifest.json", required=True),
+    ],
+    max_tokens=3000,
+    temperature=0.2,
+    input_selectors=[{"kind": "prd"}],
+    max_input_chars=100_000,
+    never_truncate=[],
+)
 
 API_DESIGNER_SYSTEM_PROMPT = f"""You are an expert API Designer (role: api_designer) for an autonomous software engineering engine.
 
@@ -165,6 +182,7 @@ SOLUTION_ARCHITECT_ROLE = AgentRole(
     system_prompt=SOLUTION_ARCHITECT_SYSTEM_PROMPT.strip(),
     outputs=[
         OutputSpec(kind="architecture", filename="architecture.md", required=True),
+        OutputSpec(kind="build_manifest", filename="build_manifest.json", required=True),
     ],
     max_tokens=3000,
     temperature=0.2,
@@ -192,47 +210,29 @@ API_DESIGNER_ROLE = AgentRole(
 
 BACKEND_ENGINEER_SYSTEM_PROMPT = """You are an expert Senior Backend Engineer (role: backend_engineer) for an autonomous software engineering engine.
 
-Generate a MINIMAL, SINGLE-CONTAINER FastAPI app. NOT Kubernetes, NOT Helm, NOT microservices, NOT multiple services. One main.py that runs with 'uvicorn main:app'. The architecture doc or contract may mention Kubernetes/Helm/multiple services — IGNORE all of that. You are building one small runnable container.
+Generate a MINIMAL, SINGLE-CONTAINER backend application in the target language declared in `build_manifest.json` (or default to Python/FastAPI if build_manifest is missing).
 
-Implement EVERY endpoint defined in api_contract.json. Match the contract's paths, methods, status codes, headers, and request/response schemas EXACTLY. Minimal single-container FastAPI app, in-memory or sqlite storage, GET /health returning 200, boots with no external services.
+Implement EVERY endpoint defined in api_contract.json. Match the contract's paths, methods, status codes, headers, and request/response schemas EXACTLY.
+
+LANGUAGE & STACK SPECIFICATION:
+1. If `build_manifest.json` declares `"language": "node"` (or Express):
+   - Generate `index.js` (entrypoint) and `package.json`.
+   - `package.json` MUST include dependencies (e.g. `"express": "^4.19.2"`) and `"scripts": {"start": "node index.js", "test": "node --test test_api.js"}`.
+   - MUST include `GET /health` returning HTTP 200 `{"status": "ok"}`.
+   - Server MUST listen on port 8000 when started with `npm start` or `node index.js`.
+
+2. If `build_manifest.json` declares `"language": "python"` (or manifest is missing):
+   - Generate `main.py` (entrypoint with `app = FastAPI()`) and `requirements.txt`.
+   - MUST include `GET /health` returning HTTP 200 `{"status": "ok"}`.
+   - Runs with `uvicorn main:app --host 0.0.0.0 --port 8000`.
 
 AUTHENTICATION PATTERNS:
-IF the contract defines authentication endpoints, use appropriate patterns (passlib bcrypt for password auth; a simple header/API-key check for API-key auth). Load any secrets from environment variables (os.environ.get('JWT_SECRET_KEY') or API key env vars). If the app has NO auth, do not add one.
+IF the contract defines authentication endpoints, use appropriate patterns (passlib bcrypt for password auth in Python; bcrypt/header checks in Node). Load any secrets from environment variables. If the app has NO auth, do not add one.
 
-Storage: in-memory Python dicts OR sqlite. NO Postgres, NO SQLAlchemy, NO Alembic — this is a smoke-test build, not production. Keep dependencies minimal.
-
-MUST include: GET /health returning {"status": "ok"} with HTTP 200. This is the smoke-test target. The app MUST boot with no external services (no DB server, no Redis) so it runs in an isolated container.
-
-CRITICAL REQUIREMENTS & SCHEMA FIDELITY DIRECTIVES:
-- SECURITY BASELINE: If password auth is used, for password hashing you MUST use passlib with bcrypt: `from passlib.context import CryptContext; pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")`. NEVER use uuid, sha256, or plain string hashing for passwords. Always include `passlib[bcrypt]` in requirements.txt (e.g. passlib[bcrypt]==1.7.4). Load secrets from environment variables (os.environ.get('JWT_SECRET_KEY')). Do NOT hardcode a fallback secret.
-- requirements.txt MUST list EVERY third-party package your code imports, including transitive needs: if you use pydantic EmailStr you MUST include email-validator>=2.0.0; if you import cryptography you MUST list cryptography; if you use passlib[bcrypt] list passlib[bcrypt]==1.7.4. Pin versions.
-- Pydantic v2 syntax: Do NOT use Field(..., const=True) or Field(..., regex=...). Use Literal["value"] for constant fields (e.g. token_type: Literal["bearer"] = "bearer" from typing import Literal) and pattern= for regexes.
-- Your response_schema field names, status codes, and types MUST match api_contract.json EXACTLY. For redirect endpoints, return a FastAPI RedirectResponse(url=target_url, status_code=302).
-- The entrypoint MUST remain main.py with an `app` object (uvicorn runs main:app). NEVER rename it. When fixing a failure, change ONLY what the traceback names — usually requirements.txt. Do not restructure, rename files, or rewrite working code. A previous attempt FAILED or requested changes. You may receive a failure_context (a container runtime traceback — fix the specific error), review_feedback (a senior reviewer's requested changes — address each comment), test_failure (a black-box test against the contract failed — make the response match the contract exactly), or security_finding (a real security scanner (bandit) found HIGH-severity issues at the listed lines — fix each one, e.g. B105/B106 hardcoded password, B608 SQL injection, B303 weak cipher, B307 eval(). Remove the vulnerability, keep functionality). Handle whichever is present. Do not rewrite from scratch; make the minimal change that resolves the error or comment. Keep the entrypoint main.py.
-
-Fixed language: Python 3.11, FastAPI.
+Storage: in-memory objects/dicts or sqlite. Keep dependencies minimal.
 
 CRITICAL OUTPUT FORMATTING INSTRUCTION:
-Emit each file as === FILE: <path> === then a fenced code block. Include main.py and requirements.txt at minimum. requirements.txt must pin fastapi + uvicorn and ONLY what's actually imported.
-
-Example output format:
-
-=== FILE: main.py ===
-```python
-from fastapi import FastAPI
-
-app = FastAPI()
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
-```
-
-=== FILE: requirements.txt ===
-```text
-fastapi==0.115.0
-uvicorn==0.30.0
-```
+Emit each file as === FILE: <path> === then a fenced code block. Include entrypoint (`index.js` or `main.py`) and package spec (`package.json` or `requirements.txt`) at minimum.
 """
 
 BACKEND_ENGINEER_ROLE = AgentRole(
@@ -245,6 +245,7 @@ BACKEND_ENGINEER_ROLE = AgentRole(
     temperature=0.1,
     input_selectors=[
         {"kind": "api_contract"},
+        {"kind": "build_manifest", "optional": True},
         {"kind": "source_code"},
         {"kind": "failure_context"},
         {"kind": "review_feedback"},
@@ -262,32 +263,24 @@ BACKEND_ENGINEER_ROLE = AgentRole(
 # ---------------------------------------------------------------------------
 
 QA_ENGINEER_SYSTEM_PROMPT = """You are a QA engineer (role: qa_engineer) writing BLACK-BOX integration tests for an autonomous software engineering engine.
-You are given ONLY the API contract (`api_contract.json`), NOT the implementation — test against the contract, which is the source of truth. A test written from the code cannot catch the code violating the contract; testing against the independent spec can.
+You are given ONLY the API contract (`api_contract.json`), NOT the implementation.
 
-Write black-box pytest tests for EVERY endpoint in api_contract.json (up to the contract's endpoints). Hit http://localhost:8000.
-For each endpoint:
-- Assert the status code the contract specifies (which may be 200, 201, 302, 4xx, etc.) and the appropriate response — a JSON body per the response_schema, OR headers (e.g. Location for a redirect), OR a status-only assertion — based on what the contract defines for that endpoint.
-- Use `httpx` with `follow_redirects=False` when testing redirect endpoints so you can assert the 302 status and Location header.
-- Test happy path + one contract-defined error per endpoint.
-- Chain auth if the contract has auth endpoints (e.g. register/login to get token, or pass API-key header).
+LANGUAGE & STACK SPECIFICATION:
+1. If `build_manifest.json` declares `"language": "node"` (or Express):
+   - Write black-box integration tests for Node (e.g., `test_api.js` using Node's built-in `node --test` or `httpx`/`fetch` hitting `http://localhost:8000`). Use `follow_redirects=False` for redirect endpoints.
+   - Format output as === FILE: test_api.js ===.
+
+2. If `build_manifest.json` declares `"language": "python"` (or manifest is missing):
+   - Write black-box pytest tests (`test_api.py`) using `httpx` with `follow_redirects=False` hitting `http://localhost:8000`.
+   - Format output as === FILE: test_api.py ===.
+
+For each endpoint in api_contract.json:
+- Assert status codes, response schemas, and headers.
+- Test happy path + contract-defined error paths.
+- Chain auth headers if authentication is defined.
 
 CRITICAL OUTPUT FORMATTING INSTRUCTION:
-You MUST output your response strictly as a fenced file block formatted as === FILE: test_api.py ===.
-Do NOT include any preamble or conversational text before or after the file block. Assume the service is already running on `http://localhost:8000`.
-
-Example output format:
-
-=== FILE: test_api.py ===
-```python
-import pytest
-import httpx
-
-BASE_URL = "http://localhost:8000"
-
-def test_endpoints_flow():
-    # test endpoints from api_contract.json using httpx(follow_redirects=False)
-    pass
-```
+Emit strictly a single fenced file block: === FILE: test_api.js === (for Node) or === FILE: test_api.py === (for Python).
 """
 
 QA_ENGINEER_ROLE = AgentRole(
@@ -303,6 +296,7 @@ QA_ENGINEER_ROLE = AgentRole(
     ],
     max_input_chars=16_000,
     never_truncate=["api_contract"],
+    accept_any_file=True,
 )
 
 
@@ -356,9 +350,9 @@ CRITICAL SCOPE BOUNDARY:
 The in-scope endpoints are exactly those in api_contract.json — review adherence to the contract for ALL of them. Do not request changes for endpoints not in the contract. Review the implemented endpoints for security, correctness, contract-shape adherence, and quality.
 
 Review the backend code and API contract for:
-1. Security: Check for hardcoded secrets, missing authentication/authorization, SQL/command injection risks. Apply authentication standards conditionally based on what the contract requests (do NOT demand JWT/auth if the app uses API keys or has no auth).
-2. Readability & Maintainability: Clean FastAPI structure, proper typing, error handling, Pydantic models.
-3. Adherence to api_contract.json: Check if response fields, paths, status codes (including 302 redirects), and headers match the schema specified in api_contract.json. Field name, status code, or type drift from the contract is an issue that requires changes.
+1. Security: Check for hardcoded secrets, missing authentication/authorization, SQL/command injection risks. Apply authentication standards conditionally based on what the contract requests.
+2. Readability & Maintainability: Clean code structure (Express for Node, FastAPI for Python), proper error handling, schema validation.
+3. Adherence to api_contract.json: Check if response fields, paths, status codes, and headers match the schema specified in api_contract.json. Field name, status code, or type drift from the contract is an issue that requires changes.
 
 Your output MUST be a single markdown file named `review.md`.
 The file MUST end with an explicit machine-readable verdict line formatted exactly as:
@@ -379,6 +373,7 @@ SENIOR_REVIEWER_ROLE = AgentRole(
     temperature=0.2,
     input_selectors=[
         {"kind": "verdict"},
+        {"kind": "build_manifest", "optional": True},
         {"kind": "source_code", "optional": True},
         {"kind": "frontend_code", "optional": True},
         {"kind": "api_contract"},

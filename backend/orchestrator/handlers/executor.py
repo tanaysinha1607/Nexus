@@ -8,6 +8,7 @@ from orchestrator.handlers import ArtifactSpec, HandlerResult
 from orchestrator.sandbox.bandit_runner import run_bandit_security_scan_in_docker_sandbox
 from orchestrator.sandbox.devops_runner import run_devops_checks_in_docker_sandbox
 from orchestrator.sandbox.docker_runner import run_code_in_docker_sandbox
+from orchestrator.sandbox.npm_audit_runner import run_npm_audit_scan_in_docker_sandbox
 from orchestrator.sandbox.test_runner import run_contract_tests_in_docker_sandbox
 from orchestrator.sandbox.ts_build_runner import run_ts_build_in_docker_sandbox
 
@@ -41,8 +42,15 @@ async def handle_executor_node(
     test_files: dict[str, str] = {}
     frontend_files: dict[str, str] = {}
     dockerfile_content: str = ""
+    manifest: dict = {"language": "python", "framework": "fastapi"}
+
     for art in inputs.values():
-        if art.kind == "source_code":
+        if art.kind == "build_manifest":
+            try:
+                manifest = json.loads(art.content)
+            except Exception as e:
+                logger.warning(f"Failed to parse build_manifest artifact: {e}")
+        elif art.kind == "source_code":
             source_files[art.filename] = art.content
         elif art.kind == "test_code":
             test_files[art.filename] = art.content
@@ -89,7 +97,7 @@ async def handle_executor_node(
             logs=log_msg,
         )
 
-    # Branch for SecurityScanExecutor (Bandit AST security scan)
+    # Branch for SecurityScanExecutor (Bandit for Python, npm audit for Node)
     if node.agent_role == "security_executor" or node.name.startswith("SecurityScanExecutor"):
         if "mock_report" in node.config:
             report = node.config["mock_report"]
@@ -100,12 +108,14 @@ async def handle_executor_node(
                 "medium_count": 0,
                 "low_count": 0,
                 "high_findings": [],
-                "bandit_version": "",
                 "raw_output": "Missing source_code artifacts.",
                 "elapsed_s": 0.0,
             }
         else:
-            report = run_bandit_security_scan_in_docker_sandbox(source_files)
+            if manifest.get("language") == "node" or "package.json" in source_files:
+                report = run_npm_audit_scan_in_docker_sandbox(source_files)
+            else:
+                report = run_bandit_security_scan_in_docker_sandbox(source_files)
 
         artifact_spec = ArtifactSpec(
             kind="security_report",
@@ -115,10 +125,10 @@ async def handle_executor_node(
         )
 
         log_msg = (
-            f"SecurityScanExecutor {node.name} completed bandit scan: "
+            f"SecurityScanExecutor {node.name} completed security scan: "
+            f"scanner={report.get('scanner', 'bandit')}, "
             f"scan_completed={report.get('scan_completed')}, "
-            f"high_count={report.get('high_count')}, medium_count={report.get('medium_count')}, "
-            f"low_count={report.get('low_count')}"
+            f"high_count={report.get('high_count')}, critical_count={report.get('critical_count', 0)}"
         )
 
         return HandlerResult(
@@ -180,7 +190,7 @@ async def handle_executor_node(
                 "elapsed_s": 0.0,
             }
         else:
-            report = run_contract_tests_in_docker_sandbox(source_files, test_files)
+            report = run_contract_tests_in_docker_sandbox(source_files, test_files, manifest=manifest)
 
         artifact_spec = ArtifactSpec(
             kind="test_report",
@@ -219,7 +229,7 @@ async def handle_executor_node(
         if "mock_report" in node.config:
             report = node.config["mock_report"]
         else:
-            report = run_code_in_docker_sandbox(source_files)
+            report = run_code_in_docker_sandbox(source_files, manifest=manifest)
 
     artifact_spec = ArtifactSpec(
         kind="execution_report",

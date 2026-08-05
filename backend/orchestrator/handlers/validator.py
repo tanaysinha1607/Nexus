@@ -84,7 +84,7 @@ async def handle_validator_node(
             meta={"passed": passed, "failures": failures},
         )
 
-    # SecurityValidator branch (Phase 3 Bandit AST security scan)
+    # SecurityValidator branch (Bandit for Python, npm audit for Node)
     if security_report_art is not None:
         try:
             report = json.loads(security_report_art.content)
@@ -97,16 +97,24 @@ async def handle_validator_node(
 
         scan_completed = report.get("scan_completed", False)
         high_count = report.get("high_count", 0)
+        critical_count = report.get("critical_count", 0)
         high_findings = report.get("high_findings", [])
+        scanner = report.get("scanner", "bandit")
 
-        passed = bool(scan_completed and high_count == 0)
+        passed = bool(scan_completed and high_count == 0 and critical_count == 0)
         failures = []
         if not scan_completed:
             failures.append("security_scan_failed_to_complete")
-        if high_count > 0:
+        if high_count > 0 or critical_count > 0:
             for f in high_findings:
-                loc = f"{f.get('filename')}:{f.get('line_number')}"
-                failures.append(f"HIGH_VULNERABILITY [{f.get('test_id')}] {f.get('issue_text')} at {loc}")
+                if scanner == "npm_audit":
+                    pkg = f.get("package", f.get("name", "unknown"))
+                    sev = f.get("severity", "high").upper()
+                    title = f.get("title", "Vulnerable dependency")
+                    failures.append(f"{sev}_DEPENDENCY_VULNERABILITY [{pkg}] {title}")
+                else:
+                    loc = f"{f.get('filename')}:{f.get('line_number')}"
+                    failures.append(f"HIGH_VULNERABILITY [{f.get('test_id')}] {f.get('issue_text')} at {loc}")
 
         verdict_payload = {
             "passed": passed,

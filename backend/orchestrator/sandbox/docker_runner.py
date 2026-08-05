@@ -7,7 +7,7 @@ import docker
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_DOCKERFILE = """FROM python:3.11-slim
+DEFAULT_PYTHON_DOCKERFILE = """FROM python:3.11-slim
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY . /app
@@ -15,12 +15,21 @@ RUN pip install --no-cache-dir -r requirements.txt
 CMD ["sh", "-c", "python -c 'import main' && uvicorn main:app --host 0.0.0.0 --port 8000"]
 """
 
-def create_tar_stream(files: dict[str, str]) -> io.BytesIO:
+DEFAULT_NODE_DOCKERFILE = """FROM node:20-slim
+WORKDIR /app
+COPY . /app
+RUN npm install
+EXPOSE 8000
+CMD ["npm", "start"]
+"""
+
+
+def create_tar_stream(files: dict[str, str], is_node: bool = False) -> io.BytesIO:
     """Create an in-memory tarball stream containing all source files and a Dockerfile."""
     tar_stream = io.BytesIO()
     files_to_pack = dict(files)
     if "Dockerfile" not in files_to_pack:
-        files_to_pack["Dockerfile"] = DEFAULT_DOCKERFILE
+        files_to_pack["Dockerfile"] = DEFAULT_NODE_DOCKERFILE if is_node else DEFAULT_PYTHON_DOCKERFILE
 
     with tarfile.open(fileobj=tar_stream, mode="w") as tar:
         for fname, fcontent in files_to_pack.items():
@@ -34,14 +43,26 @@ def create_tar_stream(files: dict[str, str]) -> io.BytesIO:
     tar_stream.seek(0)
     return tar_stream
 
-def run_code_in_docker_sandbox(source_files: dict[str, str], timeout_s: int = 45) -> dict:
+
+def run_code_in_docker_sandbox(
+    source_files: dict[str, str],
+    timeout_s: int = 45,
+    manifest: dict | None = None,
+) -> dict:
     """Builds and runs source code in an isolated Docker container sandbox.
     
+    Dispatches toolchain based on build_manifest language ('python' vs 'node').
     Emits an execution report dictionary. Guaranteed teardown of container & image.
     """
     start_time = time.time()
     tag_name = f"nexus-sandbox-{uuid.uuid4().hex[:8]}"
     
+    is_node = False
+    if manifest and isinstance(manifest, dict) and manifest.get("language") == "node":
+        is_node = True
+    elif "package.json" in source_files:
+        is_node = True
+
     build_success = False
     build_logs_tail = ""
     container_started = False
@@ -69,7 +90,7 @@ def run_code_in_docker_sandbox(source_files: dict[str, str], timeout_s: int = 45
         }
 
     # 1. Build Image
-    tar_stream = create_tar_stream(source_files)
+    tar_stream = create_tar_stream(source_files, is_node=is_node)
     build_logs_list = []
 
     try:
@@ -111,14 +132,15 @@ def run_code_in_docker_sandbox(source_files: dict[str, str], timeout_s: int = 45
 
             # 3. Health Probe: poll /health in-container up to 15s
             probe_deadline = time.time() + 15.0
-            cmd = "python -c \"import urllib.request; res=urllib.request.urlopen('http://127.0.0.1:8000/health'); exit(0 if res.status==200 else 1)\""
+            if is_node:
+                cmd = "node -e \"require('http').get('http://127.0.0.1:8000/health', (res) => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))\""
+            else:
+                cmd = "python -c \"import urllib.request; res=urllib.request.urlopen('http://127.0.0.1:8000/health'); exit(0 if res.status==200 else 1)\""
 
             while time.time() < probe_deadline:
                 time.sleep(1.0)
-                # Check container state
                 container.reload()
                 if container.status != "running":
-                    # Container crashed or exited early
                     break
                 
                 exec_res = container.exec_run(cmd)
@@ -130,7 +152,6 @@ def run_code_in_docker_sandbox(source_files: dict[str, str], timeout_s: int = 45
         except Exception as exc:
             logger.warning(f"Container execution error: {exc}")
 
-        # Capture container logs (stdout/stderr)
         if container is not None:
             try:
                 raw_logs = container.logs(stdout=True, stderr=True)
