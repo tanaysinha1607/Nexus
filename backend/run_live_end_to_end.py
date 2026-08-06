@@ -44,9 +44,9 @@ async def run_live_e2e():
     logger.info("=" * 75)
 
     user_prompt = (
-        "Build a RESTful task management API with user authentication (JWT), "
-        "task creation with title, description, due date, and completion status, "
-        "task filtering by completion status, and input validation."
+        "Build a URL bookmarking service API with user authentication (JWT), "
+        "bookmark creation with title, target URL, and tags, "
+        "listing bookmarks by tag, and bookmark deletion."
     )
 
     async with session_factory() as session:

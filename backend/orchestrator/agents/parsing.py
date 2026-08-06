@@ -26,6 +26,48 @@ from orchestrator.handlers import ArtifactSpec
 logger = logging.getLogger(__name__)
 
 # Matches === FILE: filename.ext === followed by optional fenced code block or raw text
+CODE_FILE_EXTENSIONS = (
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".json",
+    ".sh",
+    ".yaml",
+    ".yml",
+    ".css",
+    ".html",
+    ".txt",
+)
+
+
+def sanitize_code_artifact(content: str) -> str:
+    """Normalize non-standard Unicode characters emitted by LLMs into ASCII equivalents for code files.
+
+    Replaces:
+      - U+2010, U+2011, U+2012, U+2013, U+2014, U+2212 -> '-'
+      - U+2018, U+2019, U+02BC -> "'"
+      - U+201C, U+201D -> '"'
+      - U+00A0, U+202F -> ' ' (normal space)
+      - U+200B, U+200C, U+200D, U+FEFF -> '' (zero-width / BOM removed)
+    """
+    if not content:
+        return content
+
+    # 1. Hyphens, dashes, minus signs
+    content = re.sub(r"[\u2010\u2011\u2012\u2013\u2014\u2212]", "-", content)
+    # 2. Smart quotes (single and double)
+    content = re.sub(r"[\u2018\u2019\u02BC]", "'", content)
+    content = re.sub(r"[\u201C\u201D]", '"', content)
+    # 3. Non-breaking spaces
+    content = re.sub(r"[\u00A0\u202F]", " ", content)
+    # 4. Invisible / zero-width characters and byte-order-mark (BOM)
+    content = re.sub(r"[\u200B\u200C\u200D\uFEFF]", "", content)
+
+    return content
+
+
 FILE_HEADER_PATTERN = re.compile(r"===\s*FILE:\s*([^\s=]+)\s*===", re.IGNORECASE)
 
 
@@ -109,7 +151,10 @@ def parse_agent_output(
         if block_text.endswith("```"):
             block_text = block_text[:-3]
 
-        extracted_files[filename] = block_text.strip()
+        clean_text = block_text.strip()
+        if filename.endswith(CODE_FILE_EXTENSIONS) or filename == "Dockerfile":
+            clean_text = sanitize_code_artifact(clean_text)
+        extracted_files[filename] = clean_text
 
     # Special multi-artifact source code mode (e.g. backend_engineer)
     if role is not None and getattr(role, "accept_any_file", False) and role.name == "backend_engineer":
