@@ -478,9 +478,10 @@ async def test_full_pm_arch_chain(session_factory, test_project):
         assert "prd" in art_kinds
         assert "prompt" in art_kinds
         assert "architecture" in art_kinds
+        assert "build_manifest" in art_kinds
         assert "api_contract" in art_kinds
-        # 1 seed + 2 PM artifacts + 2 Architect artifacts + 2 ApiDesigner artifacts = 7 total artifacts
-        assert len(artifacts) == 7
+        # 1 seed + 2 PM artifacts + 3 Architect artifacts (architecture, build_manifest, prompt) + 2 ApiDesigner artifacts = 8 total artifacts
+        assert len(artifacts) == 8
 
 
 # ---------------------------------------------------------------------------

@@ -177,19 +177,6 @@ Do NOT include any introduction, preamble, or conversational text before or afte
 ```
 """
 
-SOLUTION_ARCHITECT_ROLE = AgentRole(
-    name="solution_architect",
-    system_prompt=SOLUTION_ARCHITECT_SYSTEM_PROMPT.strip(),
-    outputs=[
-        OutputSpec(kind="architecture", filename="architecture.md", required=True),
-        OutputSpec(kind="build_manifest", filename="build_manifest.json", required=True),
-    ],
-    max_tokens=3000,
-    temperature=0.2,
-    input_selectors=[{"kind": "prd"}],
-    max_input_chars=100_000,
-    never_truncate=[],
-)
 
 API_DESIGNER_ROLE = AgentRole(
     name="api_designer",
@@ -267,11 +254,11 @@ You are given ONLY the API contract (`api_contract.json`), NOT the implementatio
 
 LANGUAGE & STACK SPECIFICATION:
 1. If `build_manifest.json` declares `"language": "node"` (or Express):
-   - Write black-box integration tests for Node (e.g., `test_api.js` using Node's built-in `node --test` or `httpx`/`fetch` hitting `http://localhost:8000`). Use `follow_redirects=False` for redirect endpoints.
+   - Write black-box integration tests for Node (e.g., `test_api.js` using Node's built-in `node --test` or `httpx`/`fetch` hitting `http://localhost:8000`). Use `follow_redirects=False` for redirect endpoints, inspecting the `Location` header (`response.headers['location']` / `response.headers['Location']`).
    - Format output as === FILE: test_api.js ===.
 
 2. If `build_manifest.json` declares `"language": "python"` (or manifest is missing):
-   - Write black-box pytest tests (`test_api.py`) using `httpx` with `follow_redirects=False` hitting `http://localhost:8000`.
+   - Write black-box pytest tests (`test_api.py`) using `httpx` with `follow_redirects=False` hitting `http://localhost:8000`, asserting the `Location` header on redirects.
    - Format output as === FILE: test_api.py ===.
 
 For each endpoint in api_contract.json:

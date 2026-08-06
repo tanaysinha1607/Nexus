@@ -298,7 +298,7 @@ def parse_agent_output(
     from orchestrator.agents.json_extract import extract_json
 
     for i, spec in enumerate(produced_specs):
-        if spec.kind == "api_contract" or spec.filename.endswith(".json"):
+        if spec.kind == "api_contract" or spec.filename == "api_contract.json":
             # Attempt robust JSON extraction
             try:
                 clean_json_str = extract_json(spec.content)
@@ -365,6 +365,42 @@ def parse_agent_output(
                         [ArtifactSpec(kind="raw_response", filename="raw_response.md", content=raw_text)],
                         log_reason,
                     )
+
+        elif spec.kind == "build_manifest" or spec.filename == "build_manifest.json":
+            try:
+                clean_json_str = extract_json(spec.content)
+                manifest_data = json.loads(clean_json_str)
+                produced_specs[i] = ArtifactSpec(
+                    kind=spec.kind,
+                    filename=spec.filename,
+                    content=clean_json_str,
+                )
+            except Exception as e:
+                try:
+                    clean_json_str = extract_json(raw_text)
+                    manifest_data = json.loads(clean_json_str)
+                    produced_specs[i] = ArtifactSpec(
+                        kind=spec.kind,
+                        filename=spec.filename,
+                        content=clean_json_str,
+                    )
+                except Exception as e2:
+                    log_reason = "build_manifest not valid JSON"
+                    logger.warning(f"{log_reason}: {e2}")
+                    return (
+                        False,
+                        [ArtifactSpec(kind="raw_response", filename="raw_response.md", content=raw_text)],
+                        log_reason,
+                    )
+
+            if not isinstance(manifest_data, dict) or "language" not in manifest_data or "framework" not in manifest_data:
+                log_reason = "build_manifest missing language or framework"
+                logger.warning(log_reason)
+                return (
+                    False,
+                    [ArtifactSpec(kind="raw_response", filename="raw_response.md", content=raw_text)],
+                    log_reason,
+                )
 
     # Validate review artifacts if present (senior_reviewer)
     for spec in produced_specs:

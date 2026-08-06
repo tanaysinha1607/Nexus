@@ -313,6 +313,16 @@ class FakeLLMClient(BaseLLMClient):
                 "# Architecture Specification\n\n"
                 "## 1. System Overview\n"
                 "FastAPI + PostgreSQL + Redis architecture.\n"
+                "```\n\n"
+                "=== FILE: build_manifest.json ===\n"
+                "```json\n"
+                "{\n"
+                '  "language": "python",\n'
+                '  "framework": "fastapi",\n'
+                '  "entrypoint": "main.py",\n'
+                '  "test_command": "pytest",\n'
+                '  "build_command": "pip install -r requirements.txt"\n'
+                "}\n"
                 "```"
             ),
             "api_designer": (
