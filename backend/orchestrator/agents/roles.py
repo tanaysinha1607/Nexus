@@ -217,6 +217,10 @@ AUTHENTICATION PATTERNS:
 IF the contract defines authentication endpoints, use appropriate patterns (passlib bcrypt for password auth in Python; bcrypt/header checks in Node). Load any secrets from environment variables. If the app has NO auth, do not add one.
 
 Storage: in-memory objects/dicts or sqlite. Keep dependencies minimal.
+DEPENDENCY RULES:
+- All imported packages MUST be explicitly listed in `requirements.txt` (or `package.json`).
+- If using Pydantic `EmailStr` or email validation, you MUST include `email-validator` in `requirements.txt`.
+- Do NOT output unicode status symbols or invalid characters in python files.
 
 CRITICAL OUTPUT FORMATTING INSTRUCTION:
 Emit each file as === FILE: <path> === then a fenced code block. Include entrypoint (`index.js` or `main.py`) and package spec (`package.json` or `requirements.txt`) at minimum.
@@ -356,7 +360,7 @@ SENIOR_REVIEWER_ROLE = AgentRole(
     outputs=[
         OutputSpec(kind="review", filename="review.md", required=True),
     ],
-    max_tokens=1500,
+    max_tokens=3000,
     temperature=0.2,
     input_selectors=[
         {"kind": "verdict"},

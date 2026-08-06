@@ -164,9 +164,15 @@ async def handle_real_agent_node(
     is_valid, parsed_specs, log_reason = parse_agent_output(res.text, role.outputs, role=role)
 
     if not is_valid:
+        failure_ctx_spec = ArtifactSpec(
+            kind="failure_context",
+            filename="failure_context.md",
+            content=f"Code generation/syntax validation error: {log_reason}\n\nPlease fix the generated code and ensure requirements.txt includes all imported packages.",
+        )
+        all_failed_specs = parsed_specs + [failure_ctx_spec]
         return HandlerResult(
             status=NodeStatus.failed,
-            artifacts=parsed_specs,  # Contains raw_response artifact spec
+            artifacts=all_failed_specs,
             logs=log_reason,
             meta=meta,
         )
