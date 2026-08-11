@@ -8,6 +8,9 @@ import type { ArtifactData, EdgeData, NexusEvent, NodeData, RunData } from "./ty
 const CANONICAL_PROMPT =
   "Build a cryptocurrency paper trading platform with authentication, a dashboard, charts, portfolio management, and an admin panel.";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const WS_BASE = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8000`;
+
 export default function App() {
   const [hasEntered, setHasEntered] = useState<boolean>(false);
   const [projectId, setProjectId] = useState<string | null>(null);
@@ -37,7 +40,7 @@ export default function App() {
 
     async function initProject() {
       try {
-        const res = await fetch("http://localhost:8000/api/projects", {
+        const res = await fetch(`${API_BASE}/api/projects`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -66,7 +69,7 @@ export default function App() {
   // Snapshot fetching logic
   const fetchSnapshot = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:8000/api/runs/${id}/snapshot`);
+      const res = await fetch(`${API_BASE}/api/runs/${id}/snapshot`);
       if (!res.ok) return;
       const data = await res.json();
       setRun(data.run);
@@ -92,7 +95,7 @@ export default function App() {
 
     fetchSnapshot(runId);
 
-    const wsUrl = `ws://${window.location.hostname}:8000/ws/runs/${runId}`;
+    const wsUrl = `${WS_BASE}/ws/runs/${runId}`;
     const ws = new WebSocket(wsUrl);
     wsRef.current = ws;
 
@@ -150,7 +153,7 @@ export default function App() {
     setSelectedNode(null);
     try {
       // 1. Create project
-      const projRes = await fetch("http://localhost:8000/api/projects", {
+      const projRes = await fetch(`${API_BASE}/api/projects`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -163,7 +166,7 @@ export default function App() {
 
       // 2. Trigger run on graph=pm_arch_backend_exec
       const runRes = await fetch(
-        `http://localhost:8000/api/projects/${projData.id}/runs?graph=pm_arch_backend_exec`,
+        `${API_BASE}/api/projects/${projData.id}/runs?graph=pm_arch_backend_exec`,
         { method: "POST" }
       );
       const runData = await runRes.json();
@@ -344,7 +347,7 @@ export default function App() {
                     <button
                       onClick={async () => {
                         try {
-                          const res = await fetch(`http://localhost:8000/api/runs/${run.id}/open_pr`, {
+                          const res = await fetch(`${API_BASE}/api/runs/${run.id}/open_pr`, {
                             method: "POST",
                           });
                           if (res.ok) {
